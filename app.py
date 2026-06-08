@@ -11,8 +11,8 @@ import numpy as np
 #  PAGE CONFIG
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="Sales Analytics Dashboard",
-    page_icon="🛡️",
+    page_title="Liability Sales Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -128,16 +128,11 @@ def load_google_sheets():
             "https://www.googleapis.com/auth/spreadsheets.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
         ]
-        creds  = Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"], scopes=scopes
+        creds  = Credentials.from_service_account_file(
+            "symbolic-math-490710-k4-4698766a9d7d.json", scopes=scopes
         )
         client = gspread.authorize(creds)
         sheet  = client.open_by_key("1vrcUd4GT7U4G9YD57A9ApkcJTrwsgsspGmo2_QRvEvA").get_worksheet_by_id(342091003)
-        df     = pd.DataFrame(sheet.get_all_records())
-        return df, None
-    except Exception as e:
-        return None, str(e)
-        sheet  = client.open_by_key(st.secrets["sheet_id"]).get_worksheet_by_id(342091003)
         df     = pd.DataFrame(sheet.get_all_records())
         return df, None
     except Exception as e:
@@ -189,8 +184,6 @@ def make_sample():
 df_raw, err = load_google_sheets()
 demo_mode   = False
 
-if err:
-    st.error(f"Error: {err}")
 if err or df_raw is None or df_raw.empty:
     df_raw    = make_sample()
     demo_mode = True
@@ -209,8 +202,8 @@ df_raw["_MonthPeriod"] = df_raw["Date"].dt.to_period("M")
 with st.sidebar:
     st.markdown("""
     <div class='sidebar-brand'>
-        <h2>🛡️ Sales Dashboard</h2>
-        <p>Insurance Analytics Platform</p>
+        <h2>📊 Liability Sales</h2>
+        <p>Sales Analytics Platform</p>
     </div>""", unsafe_allow_html=True)
 
     # Month filter
@@ -272,7 +265,7 @@ for col, chosen in sel.items():
 # ─────────────────────────────────────────────
 h1, h2 = st.columns([5, 1])
 with h1:
-    st.markdown("# 🛡️ Sales Analytics Dashboard")
+    st.markdown("# 📊 Liability Sales Dashboard")
     st.markdown(f"<p style='margin-top:-10px;font-size:13px;'>{len(df):,} records · Filtered view</p>", unsafe_allow_html=True)
 with h2:
     st.markdown("<br>", unsafe_allow_html=True)
@@ -339,7 +332,7 @@ st.markdown(f"""
   </div>
   <div class='kpi-card c2'>
     <div class='kpi-icon'>🧾</div>
-    <div class='kpi-label'>W/GST</div>
+    <div class='kpi-label'>Achievement</div>
     <div class='kpi-value'>{fmt(total_wgst)}</div>
     <div class='kpi-sub'>{target_badge(total_wgst, total_mtd)}</div>
   </div>
@@ -384,81 +377,166 @@ st.markdown(f"""
 
 
 # ─────────────────────────────────────────────
-#  MONTHLY TREND — W/GST vs MTD Target + NOP + CP W/GST vs CP Target
+#  MONTHLY TREND — W/GST vs MTD Target + NOP + CP Achievement vs CP Target
+
+# ─────────────────────────────────────────────
+#  MONTHLY TREND — 2 Separate Charts
 # ─────────────────────────────────────────────
 st.markdown("<div class='sec-head'>📈 Monthly Trend</div>", unsafe_allow_html=True)
 
 trend = (
-    df.groupby("_MonthPeriod")
+    df.groupby("Month")
     .agg(
-        WGST        =("W/GST",           "sum"),
-        MTD_Target  =("MTD Target",       "sum"),
-        NOP         =("Policy Status",    "count"),
-        CP_WGST     =("CP Premium W/GST", "sum"),
-        CP_Target   =("CP Target",        "sum"),
+        WGST       =("W/GST",           "sum"),
+        MTD_Target =("MTD Target",       "sum"),
+        NOP        =("Policy Status",    "count"),
+        CP_WGST    =("CP Premium W/GST", "sum"),
+        CP_Target  =("CP Target",        "sum"),
     )
     .reset_index()
-    .sort_values("_MonthPeriod")
 )
-trend["Month_Str"] = trend["_MonthPeriod"].astype(str)
 
-fig_trend = go.Figure()
+# Sort months properly
+month_order = ["January","February","March","April","May","June",
+               "July","August","September","October","November","December"]
+trend["_mo"] = trend["Month"].apply(lambda x: month_order.index(x) if x in month_order else 99)
+trend = trend.sort_values("_mo").drop("_mo", axis=1)
 
-# W/GST line
-fig_trend.add_trace(go.Scatter(
-    x=trend["Month_Str"], y=trend["WGST"],
-    name="W/GST (Actual)", mode="lines+markers",
-    line=dict(color="#388bfd", width=3),
-    marker=dict(size=7, color="#388bfd", line=dict(color="#060d1a", width=2)),
-    fill="tozeroy", fillcolor="rgba(56,139,253,0.06)",
-    yaxis="y1"
-))
-# MTD Target line
-fig_trend.add_trace(go.Scatter(
-    x=trend["Month_Str"], y=trend["MTD_Target"],
-    name="MTD Target", mode="lines+markers",
-    line=dict(color="#d29922", width=2, dash="dash"),
-    marker=dict(size=6, color="#d29922"),
-    yaxis="y1"
-))
-# CP W/GST line
-fig_trend.add_trace(go.Scatter(
-    x=trend["Month_Str"], y=trend["CP_WGST"],
-    name="CP Premium W/GST", mode="lines+markers",
-    line=dict(color="#bc8cff", width=2),
-    marker=dict(size=6, color="#bc8cff"),
-    yaxis="y1"
-))
-# CP Target
-fig_trend.add_trace(go.Scatter(
-    x=trend["Month_Str"], y=trend["CP_Target"],
-    name="CP Target", mode="lines+markers",
-    line=dict(color="#56d364", width=2, dash="dot"),
-    marker=dict(size=5, color="#56d364"),
-    yaxis="y1"
-))
-# NOP bars
-fig_trend.add_trace(go.Bar(
-    x=trend["Month_Str"], y=trend["NOP"],
-    name="NOP", marker_color="rgba(255,123,114,0.35)",
-    yaxis="y2"
-))
+tc1, tc2 = st.columns(2)
 
-fig_trend.update_layout(
-    **base("Monthly: W/GST vs MTD Target · CP W/GST vs CP Target · NOP", h=370),
-    yaxis =dict(title="Amount (₹)", gridcolor=GRID, tickfont=dict(color=TXT)),
-    yaxis2=dict(title="NOP", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", tickfont=dict(color=TXT)),
-    hovermode="x unified",
-    barmode="overlay",
-    legend=dict(orientation="h", y=-0.18, font=dict(color=TXT, size=10))
-)
-st.plotly_chart(fig_trend, use_container_width=True)
+with tc1:
+    fig_wgst = go.Figure()
+    fig_wgst.add_trace(go.Scatter(
+        x=trend["Month"], y=trend["WGST"],
+        name="Achievement (Actual)", mode="lines+markers+text",
+        line=dict(color="#388bfd", width=3),
+        marker=dict(size=8, color="#388bfd", line=dict(color="#060d1a", width=2)),
+        fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
+        text=[fmt(v) for v in trend["WGST"]],
+        textposition="top center", textfont=dict(color="#388bfd", size=10),
+    ))
+    fig_wgst.add_trace(go.Scatter(
+        x=trend["Month"], y=trend["MTD_Target"],
+        name="MTD Target", mode="lines+markers+text",
+        line=dict(color="#d29922", width=2, dash="dash"),
+        marker=dict(size=7, color="#d29922"),
+        text=[fmt(v) for v in trend["MTD_Target"]],
+        textposition="bottom center", textfont=dict(color="#d29922", size=10),
+    ))
+    fig_wgst.add_trace(go.Scatter(
+        x=trend["Month"], y=trend["CP_WGST"],
+        name="CP Achievement", mode="lines+markers+text",
+        line=dict(color="#bc8cff", width=2),
+        marker=dict(size=7, color="#bc8cff"),
+        text=[fmt(v) for v in trend["CP_WGST"]],
+        textposition="top center", textfont=dict(color="#bc8cff", size=10),
+    ))
+    fig_wgst.add_trace(go.Scatter(
+        x=trend["Month"], y=trend["CP_Target"],
+        name="CP Target", mode="lines+markers+text",
+        line=dict(color="#56d364", width=2, dash="dot"),
+        marker=dict(size=6, color="#56d364"),
+        text=[fmt(v) for v in trend["CP_Target"]],
+        textposition="bottom center", textfont=dict(color="#56d364", size=10),
+    ))
+    fig_wgst.update_layout(
+        **base("📊 Achievement vs MTD Target · CP Achievement vs CP Target", h=350),
+        hovermode="x unified",
+    )
+    fig_wgst.update_layout(legend=dict(orientation="h", y=-0.22, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
+    st.plotly_chart(fig_wgst, use_container_width=True)
+
+with tc2:
+    fig_nop = go.Figure()
+    fig_nop.add_trace(go.Scatter(
+        x=trend["Month"], y=trend["NOP"],
+        name="NOP", mode="lines+markers+text",
+        line=dict(color="#ff7b72", width=3),
+        marker=dict(size=8, color="#ff7b72", line=dict(color="#060d1a", width=2)),
+        fill="tozeroy", fillcolor="rgba(255,123,114,0.07)",
+        text=trend["NOP"].astype(str),
+        textposition="top center", textfont=dict(color="#ff7b72", size=11),
+    ))
+    fig_nop.update_layout(
+        **base("📋 NOP Trend (Monthly)", h=350),
+        hovermode="x unified",
+    )
+    fig_nop.update_layout(legend=dict(orientation="h", y=-0.22, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
+    st.plotly_chart(fig_nop, use_container_width=True)
 
 
 # ─────────────────────────────────────────────
-#  ROW — Product | Policy Status
+#  RM PERFORMANCE TABLE (sorted by MTD Ach%)
 # ─────────────────────────────────────────────
-st.markdown("<div class='sec-head'>📦 Product & Policy Status</div>", unsafe_allow_html=True)
+st.markdown("<div class='sec-head'>📋 RM Performance Table</div>", unsafe_allow_html=True)
+
+rm_table = (
+    df.groupby("RM Name")
+    .agg(
+        MTD_Target =("MTD Target",       "sum"),
+        WGST       =("W/GST",            "sum"),
+        NOP        =("Policy Status",    "count"),
+        CP_Target  =("CP Target",        "sum"),
+        CP_WGST    =("CP Premium W/GST", "sum"),
+    )
+    .reset_index()
+)
+
+rm_table["MTD Ach%"]  = (rm_table["WGST"]    / rm_table["MTD_Target"].replace(0, 1) * 100).round(1)
+rm_table["CP Ach%"]   = (rm_table["CP_WGST"] / rm_table["CP_Target"].replace(0, 1)  * 100).round(1)
+rm_table = rm_table.sort_values("MTD Ach%", ascending=False).reset_index(drop=True)
+medals_list = ["🥇","🥈","🥉"]
+rm_table["Rank"] = [medals_list[i] if i < 3 else str(i+1) for i in range(len(rm_table))]
+
+rm_display = rm_table[[
+    "Rank","RM Name","MTD_Target","WGST","MTD Ach%",
+    "NOP","CP_Target","CP_WGST","CP Ach%"
+]].copy()
+
+rm_display.columns = [
+    "🏅","RM Name","🎯 MTD Target","🏆 Achievement","✅ MTD Ach%",
+    "📋 NOP","🎯 CP Target","🎯 CP Achievement","✅ CP Ach%"
+]
+
+# Color format function
+def color_ach(val):
+    color = "#3fb950" if val >= 100 else "#ff7b72" if val < 70 else "#d29922"
+    return f"color: {color}; font-weight: 600"
+
+styled = rm_display.style.map(
+    color_ach, subset=["✅ MTD Ach%","✅ CP Ach%"]
+).format({
+    "🎯 MTD Target": lambda x: fmt(x),
+    "🏆 Achievement":      lambda x: fmt(x),
+    "🎯 CP Target":  lambda x: fmt(x),
+    "🎯 CP Achievement":   lambda x: fmt(x),
+    "✅ MTD Ach%":   "{:.1f}%",
+    "✅ CP Ach%":    "{:.1f}%",
+})
+
+st.dataframe(
+    rm_display,
+    use_container_width=True,
+    hide_index=True,
+    height=min(50 + len(rm_display) * 38, 500),
+    column_config={
+        "🏅":           st.column_config.TextColumn("🏅", width="small"),
+        "RM Name":      st.column_config.TextColumn("Relationship Manager"),
+        "🎯 MTD Target":st.column_config.NumberColumn("🎯 MTD Target", format="₹%d"),
+        "🏆 Achievement":     st.column_config.NumberColumn("🏆 Achievement",      format="₹%d"),
+        "✅ MTD Ach%":  st.column_config.NumberColumn("✅ MTD Ach%",   format="%.1f%%"),
+        "📋 NOP":       st.column_config.NumberColumn("📋 NOP"),
+        "🎯 CP Target": st.column_config.NumberColumn("🎯 CP Target",  format="₹%d"),
+        "🎯 CP Achievement":  st.column_config.NumberColumn("🎯 CP Achievement",  format="₹%d"),
+        "✅ CP Ach%":   st.column_config.NumberColumn("✅ CP Ach%",    format="%.1f%%"),
+    }
+)
+
+
+# ─────────────────────────────────────────────
+#  ROW — Product | Leader Contribution%
+# ─────────────────────────────────────────────
+st.markdown("<div class='sec-head'>📦 Product & Leader Contribution</div>", unsafe_allow_html=True)
 c1, c2 = st.columns(2)
 
 with c1:
@@ -473,26 +551,28 @@ with c1:
         text=[fmt(v) for v in prod["W/GST"]], textposition="outside",
         textfont=dict(color="#c9d1d9", size=11)
     ))
-    fig_prod.update_layout(**base("W/GST by Product", h=300))
+    fig_prod.update_layout(**base("Achievement by Product", h=320))
     st.plotly_chart(fig_prod, use_container_width=True)
 
 with c2:
-    status_data = df.groupby("Policy Status").size().reset_index(name="NOP")
-    status_colors = {"Active":"#3fb950","Lapsed":"#ff7b72","Pending":"#d29922","Cancelled":"#484f58"}
-    colors = [status_colors.get(s, "#388bfd") for s in status_data["Policy Status"]]
-    fig_status = go.Figure(go.Pie(
-        labels=status_data["Policy Status"], values=status_data["NOP"],
-        hole=0.58,
-        marker=dict(colors=colors, line=dict(color="#060d1a", width=3)),
+    leader_data = df.groupby("Leader Name")["W/GST"].sum().reset_index()
+    leader_data["Contribution%"] = (leader_data["W/GST"] / leader_data["W/GST"].sum() * 100).round(1)
+    leader_data = leader_data.sort_values("W/GST", ascending=False)
+    fig_leader_pie = go.Figure(go.Pie(
+        labels=leader_data["Leader Name"],
+        values=leader_data["W/GST"],
+        hole=0.55,
+        marker=dict(colors=PAL[:len(leader_data)], line=dict(color="#060d1a", width=3)),
         textfont=dict(color="white", size=11),
-        pull=[0.04 if s == "Active" else 0 for s in status_data["Policy Status"]]
+        texttemplate="%{label}<br>%{percent}",
+        pull=[0.04] + [0]*(len(leader_data)-1)
     ))
-    fig_status.update_layout(**base("Policy Status (NOP)", h=300), showlegend=True)
-    st.plotly_chart(fig_status, use_container_width=True)
+    fig_leader_pie.update_layout(**base("Leader — Achievement Contribution %", h=320), showlegend=True)
+    st.plotly_chart(fig_leader_pie, use_container_width=True)
 
 
 # ─────────────────────────────────────────────
-#  ROW — Leader | Single vs Multi
+#  ROW — Leader Bar | Single vs Multi
 # ─────────────────────────────────────────────
 st.markdown("<div class='sec-head'>🏅 Leader & Single/Multi Analysis</div>", unsafe_allow_html=True)
 c3, c4 = st.columns(2)
@@ -501,7 +581,6 @@ with c3:
     leader = df.groupby("Leader Name").agg(
         WGST=("W/GST","sum"), NOP=("Policy Status","count")
     ).reset_index().sort_values("WGST", ascending=False)
-
     fig_leader = go.Figure()
     fig_leader.add_trace(go.Bar(
         name="W/GST", x=leader["Leader Name"], y=leader["WGST"],
@@ -514,8 +593,8 @@ with c3:
         mode="lines+markers", line=dict(color="#3fb950", width=2, dash="dot"),
         marker=dict(size=8), yaxis="y2"
     ))
+    fig_leader.update_layout(**base("Leader-wise Achievement & NOP", h=300))
     fig_leader.update_layout(
-        **base("Leader-wise W/GST & NOP", h=300),
         yaxis =dict(gridcolor=GRID, tickfont=dict(color=TXT)),
         yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", tickfont=dict(color=TXT)),
     )
@@ -525,82 +604,22 @@ with c4:
     sm = df.groupby("Single/Multi").agg(
         WGST=("W/GST","sum"), NOP=("Policy Status","count")
     ).reset_index()
-    fig_sm = go.Figure()
-    fig_sm.add_trace(go.Bar(
-        name="W/GST", x=sm["Single/Multi"], y=sm["WGST"],
-        marker_color=["#388bfd","#bc8cff"],
-        text=[fmt(v) for v in sm["WGST"]], textposition="outside",
-        textfont=dict(color="#c9d1d9", size=12), yaxis="y1"
+    sm["Contribution%"] = (sm["WGST"] / sm["WGST"].sum() * 100).round(1)
+    sm["Label"] = sm.apply(lambda r: f"{r['Single/Multi']}<br>NOP: {int(r['NOP'])}<br>{fmt(r['WGST'])}", axis=1)
+    fig_sm = go.Figure(go.Pie(
+        labels=sm["Single/Multi"],
+        values=sm["WGST"],
+        hole=0.52,
+        marker=dict(colors=["#388bfd","#bc8cff"], line=dict(color="#060d1a", width=3)),
+        text=sm["Label"],
+        textinfo="label+percent",
+        textfont=dict(color="white", size=12),
+        hovertemplate="<b>%{label}</b><br>W/GST: %{value:,.0f}<br>Share: %{percent}<br>NOP: %{customdata}<extra></extra>",
+        customdata=sm["NOP"],
+        pull=[0.04, 0]
     ))
-    fig_sm.add_trace(go.Bar(
-        name="NOP", x=sm["Single/Multi"], y=sm["NOP"],
-        marker_color=["rgba(56,139,253,0.3)","rgba(188,140,255,0.3)"],
-        text=sm["NOP"], textposition="outside",
-        textfont=dict(color="#c9d1d9", size=12), yaxis="y2"
-    ))
-    fig_sm.update_layout(
-        **base("Single vs Multi Premium", h=300),
-        yaxis =dict(gridcolor=GRID, tickfont=dict(color=TXT)),
-        yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", tickfont=dict(color=TXT)),
-        barmode="group"
-    )
+    fig_sm.update_layout(**base("Single vs Multi — Premium Contribution %", h=300), showlegend=True)
     st.plotly_chart(fig_sm, use_container_width=True)
-
-
-# ─────────────────────────────────────────────
-#  TOP RM PERFORMERS
-# ─────────────────────────────────────────────
-st.markdown("<div class='sec-head'>🏆 Top RM Performers (by W/GST)</div>", unsafe_allow_html=True)
-
-top_rm = (
-    df.groupby("RM Name")
-    .agg(
-        WGST        =("W/GST",           "sum"),
-        Total_Prem  =("Total Premium",    "sum"),
-        CP_WGST     =("CP Premium W/GST", "sum"),
-        NOP         =("Policy Status",    "count"),
-        MTD_Target  =("MTD Target",       "sum"),
-        CP_Target   =("CP Target",        "sum"),
-    )
-    .reset_index()
-    .sort_values("WGST", ascending=False)
-    .head(10)
-    .reset_index(drop=True)
-)
-top_rm["Rank"]       = ["🥇","🥈","🥉"] + [f"{i}" for i in range(4, len(top_rm)+1)]
-top_rm["Ach%"]       = (top_rm["WGST"] / top_rm["MTD_Target"].replace(0,1) * 100).round(1).astype(str) + "%"
-top_rm["W/GST Disp"] = top_rm["WGST"].apply(fmt)
-top_rm["CP W/GST"]   = top_rm["CP_WGST"].apply(fmt)
-top_rm["MTD Tgt"]    = top_rm["MTD_Target"].apply(fmt)
-
-c5, c6 = st.columns([2, 3])
-
-with c5:
-    medals = ["#d29922","#8b949e","#c17c35"] + ["#388bfd"]*7
-    fig_top = go.Figure(go.Bar(
-        x=top_rm["WGST"], y=top_rm["RM Name"],
-        orientation="h",
-        marker=dict(color=medals[:len(top_rm)], line=dict(color="rgba(0,0,0,0)")),
-        text=[fmt(v) for v in top_rm["WGST"]], textposition="outside",
-        textfont=dict(color="#c9d1d9", size=11)
-    ))
-    fig_top.update_layout(**base("", h=360))
-    st.plotly_chart(fig_top, use_container_width=True)
-
-with c6:
-    st.dataframe(
-        top_rm[["Rank","RM Name","W/GST Disp","NOP","CP W/GST","MTD Tgt","Ach%"]],
-        use_container_width=True, hide_index=True, height=360,
-        column_config={
-            "Rank":       st.column_config.TextColumn("🏅", width="small"),
-            "RM Name":    st.column_config.TextColumn("Relationship Manager"),
-            "W/GST Disp": st.column_config.TextColumn("🧾 W/GST"),
-            "NOP":        st.column_config.NumberColumn("📋 NOP"),
-            "CP W/GST":   st.column_config.TextColumn("🛡️ CP W/GST"),
-            "MTD Tgt":    st.column_config.TextColumn("🎯 MTD Target"),
-            "Ach%":       st.column_config.TextColumn("✅ Ach%"),
-        }
-    )
 
 
 # ─────────────────────────────────────────────
@@ -616,12 +635,12 @@ st.dataframe(
     df[show_cols].sort_values("Date", ascending=False).reset_index(drop=True),
     use_container_width=True, height=380,
     column_config={
-        "Date":             st.column_config.DateColumn("📅 Date",  format="DD MMM YYYY"),
-        "W/GST":            st.column_config.NumberColumn("🧾 W/GST",           format="₹%d"),
+        "Date":             st.column_config.DateColumn("📅 Date", format="DD MMM YYYY"),
+        "W/GST":            st.column_config.NumberColumn("🏆 Achievement",            format="₹%d"),
         "CP Premium W/GST": st.column_config.NumberColumn("🛡️ CP Premium W/GST", format="₹%d"),
-        "MTD Target":       st.column_config.NumberColumn("🎯 MTD Target",       format="₹%d"),
-        "PI Target":        st.column_config.NumberColumn("🎯 PI Target",        format="₹%d"),
-        "CP Target":        st.column_config.NumberColumn("🎯 CP Target",        format="₹%d"),
+        "MTD Target":       st.column_config.NumberColumn("🎯 MTD Target",        format="₹%d"),
+        "PI Target":        st.column_config.NumberColumn("🎯 PI Target",         format="₹%d"),
+        "CP Target":        st.column_config.NumberColumn("🎯 CP Target",         format="₹%d"),
     }
 )
 
@@ -645,8 +664,7 @@ with dl3:
 st.markdown("---")
 st.markdown(
     "<p style='text-align:center; color:#21262d; font-size:11px; letter-spacing:1px;'>"
-    "SALES ANALYTICS DASHBOARD  ·  GOOGLE SHEETS + STREAMLIT  ·  AUTO-REFRESH EVERY 5 MIN"
+    "LIABILITY SALES DASHBOARD  ·  GOOGLE SHEETS + STREAMLIT  ·  AUTO-REFRESH EVERY 5 MIN"
     "</p>",
     unsafe_allow_html=True
 )
-
