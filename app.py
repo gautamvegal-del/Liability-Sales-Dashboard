@@ -18,64 +18,6 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────
-#  LOGIN SYSTEM
-# ─────────────────────────────────────────────
-def check_login():
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-
-    if not st.session_state.logged_in:
-        # Login Page UI
-        st.markdown("""
-        <style>
-        .login-box {
-            max-width: 400px;
-            margin: 80px auto;
-            background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-            border: 1px solid rgba(56,139,253,0.25);
-            border-radius: 20px;
-            padding: 40px 36px;
-            text-align: center;
-        }
-        .login-title {
-            color: #f0f6fc;
-            font-size: 26px;
-            font-weight: 800;
-            margin-bottom: 6px;
-            font-family: 'Outfit', sans-serif;
-        }
-        .login-sub {
-            color: #8b949e;
-            font-size: 13px;
-            margin-bottom: 28px;
-        }
-        </style>
-        <div class='login-box'>
-            <div style='font-size:48px'>📊</div>
-            <div class='login-title'>Liability Sales Dashboard</div>
-            <div class='login-sub'>Please login to continue</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            username = st.text_input("👤 Username", placeholder="Enter username")
-            password = st.text_input("🔒 Password", type="password", placeholder="Enter password")
-            login_btn = st.button("Login →", use_container_width=True)
-
-            if login_btn:
-                correct_user = st.secrets.get("login_username", "admin")
-                correct_pass = st.secrets.get("login_password", "admin123")
-                if username == correct_user and password == correct_pass:
-                    st.session_state.logged_in = True
-                    st.rerun()
-                else:
-                    st.error("❌ Galat Username ya Password!")
-        st.stop()
-
-check_login()
-
-# ─────────────────────────────────────────────
 #  CSS
 # ─────────────────────────────────────────────
 st.markdown("""
