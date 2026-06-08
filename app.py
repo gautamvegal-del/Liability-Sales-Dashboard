@@ -370,7 +370,7 @@ st.markdown(f"""
     <div class='kpi-icon'>🎯</div>
     <div class='kpi-label'>CP Target</div>
     <div class='kpi-value'>{fmt(total_cp_target)}</div>
-    <div class='kpi-sub'>{target_badge(total_cp_wgst, total_cp_target)}</div>
+    <div class='kpi-sub'>CP Target for period</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
