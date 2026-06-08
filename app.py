@@ -358,7 +358,7 @@ st.markdown(f"""
     <div class='kpi-icon'>🎯</div>
     <div class='kpi-label'>MTD Target</div>
     <div class='kpi-value'>{fmt(total_mtd)}</div>
-    <div class='kpi-sub'>{target_badge(total_wgst, total_mtd)}</div>
+    <div class='kpi-sub'>MTD Target for period</div>
   </div>
   <div class='kpi-card c6'>
     <div class='kpi-icon'>🎯</div>
@@ -482,8 +482,8 @@ rm_table = (
     .reset_index()
 )
 
-rm_table["MTD Ach%"]  = (rm_table["WGST"]    / rm_table["MTD_Target"].replace(0, 1) * 100).round(1)
-rm_table["CP Ach%"]   = (rm_table["CP_WGST"] / rm_table["CP_Target"].replace(0, 1)  * 100).round(1)
+rm_table["MTD Ach%"]  = rm_table.apply(lambda r: 0.0 if r["MTD_Target"] == 0 else round(r["WGST"] / r["MTD_Target"] * 100, 1), axis=1)
+rm_table["CP Ach%"]   = rm_table.apply(lambda r: 0.0 if r["CP_Target"] == 0  else round(r["CP_WGST"] / r["CP_Target"] * 100, 1), axis=1)
 rm_table = rm_table.sort_values("MTD Ach%", ascending=False).reset_index(drop=True)
 medals_list = ["🥇","🥈","🥉"]
 rm_table["Rank"] = [medals_list[i] if i < 3 else str(i+1) for i in range(len(rm_table))]
@@ -492,6 +492,21 @@ rm_display = rm_table[[
     "Rank","RM Name","MTD_Target","WGST","MTD Ach%",
     "NOP","CP_Target","CP_WGST","CP Ach%"
 ]].copy()
+
+# Total row
+total_mtd_t   = rm_table["MTD_Target"].sum()
+total_wgst_t  = rm_table["WGST"].sum()
+total_nop_t   = rm_table["NOP"].sum()
+total_cp_t    = rm_table["CP_Target"].sum()
+total_cp_w_t  = rm_table["CP_WGST"].sum()
+total_mtd_ach = 0.0 if total_mtd_t == 0 else round(total_wgst_t / total_mtd_t * 100, 1)
+total_cp_ach  = 0.0 if total_cp_t  == 0 else round(total_cp_w_t  / total_cp_t  * 100, 1)
+total_row = pd.DataFrame([{
+    "Rank": "📊", "RM Name": "TOTAL",
+    "MTD_Target": total_mtd_t, "WGST": total_wgst_t, "MTD Ach%": total_mtd_ach,
+    "NOP": total_nop_t, "CP_Target": total_cp_t, "CP_WGST": total_cp_w_t, "CP Ach%": total_cp_ach
+}])
+rm_display = pd.concat([rm_display, total_row], ignore_index=True)
 
 rm_display.columns = [
     "🏅","RM Name","🎯 MTD Target","🏆 Achievement","✅ MTD Ach%",
