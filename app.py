@@ -128,11 +128,11 @@ def load_google_sheets():
             "https://www.googleapis.com/auth/spreadsheets.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
         ]
-        creds  = Credentials.from_service_account_file(
-            "symbolic-math-490710-k4-4698766a9d7d.json", scopes=scopes
+        creds  = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"], scopes=scopes
         )
         client = gspread.authorize(creds)
-        sheet  = client.open_by_key("1vrcUd4GT7U4G9YD57A9ApkcJTrwsgsspGmo2_QRvEvA").get_worksheet_by_id(342091003)
+        sheet  = client.open_by_key(st.secrets["sheet_id"]).get_worksheet_by_id(342091003)
         df     = pd.DataFrame(sheet.get_all_records())
         return df, None
     except Exception as e:
