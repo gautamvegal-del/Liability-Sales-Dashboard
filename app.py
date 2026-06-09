@@ -18,6 +18,16 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────
+#  PAGE NAVIGATION
+# ─────────────────────────────────────────────
+page = st.sidebar.radio(
+    "",
+    ["📊 Sales Dashboard", "👥 Client Analytics"],
+    label_visibility="collapsed"
+)
+st.sidebar.markdown("---")
+
+# ─────────────────────────────────────────────
 #  CSS
 # ─────────────────────────────────────────────
 st.markdown("""
@@ -312,7 +322,8 @@ def base(title="", h=320):
 # ─────────────────────────────────────────────
 #  KPI ROW 1 — 4 cards
 # ─────────────────────────────────────────────
-st.markdown("<div class='sec-head'>📊 Key Performance Indicators</div>", unsafe_allow_html=True)
+if page == "📊 Sales Dashboard":
+ st.markdown("<div class='sec-head'>📊 Key Performance Indicators</div>", unsafe_allow_html=True)
 
 total_premium   = df["Total Premium"].sum()   if "Total Premium"   in df.columns else 0
 total_wgst      = df["W/GST"].sum()           if "W/GST"           in df.columns else 0
