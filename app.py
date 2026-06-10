@@ -272,6 +272,7 @@ def show_client_page():
             "Specialization":     "🎯 Specialization",
             "Product":            "📦 Product",
             "Latest Visit Source":"🔗 Lead Source",
+            "Team Leader":        "🏅 Team Leader",
         }
         client_sel = {}
         for col, label in client_filters.items():
