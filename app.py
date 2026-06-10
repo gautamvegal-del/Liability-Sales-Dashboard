@@ -22,7 +22,7 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 page = st.sidebar.radio(
     "",
-    ["📊 Sales Dashboard", "👥 Client Analytics"],
+    ["📊 Sales Dashboard", "👥 Client Analytics", "📞 Calling Dashboard", "🎯 Leads Utilisation"],
     label_visibility="collapsed"
 )
 st.sidebar.markdown("---")
@@ -832,6 +832,15 @@ if page == "📊 Sales Dashboard":
 # ─────────────────────────────────────────────
 elif page == "👥 Client Analytics":
     show_client_page()
+elif page == "📞 Calling Dashboard":
+    st.markdown("# 📞 Calling Dashboard")
+    st.markdown("---")
+    st.info("🚧 Coming Soon — Calling data yahan show hoga!")
+
+elif page == "🎯 Leads Utilisation":
+    st.markdown("# 🎯 Leads Utilisation")
+    st.markdown("---")
+    st.info("🚧 Coming Soon — Leads data yahan show hoga!")
 
 # ─────────────────────────────────────────────
 #  FOOTER
