@@ -377,22 +377,15 @@ def show_client_page():
     )
     trend["Month_Str"] = trend["_MonthPeriod"].astype(str)
     fig_trend = go.Figure()
+    trend["Month_Label"] = trend["_MonthPeriod"].dt.strftime("%b %Y")
     fig_trend.add_trace(go.Scatter(
-        x=trend["Month_Str"], y=trend["Prem_Incl"],
-        name="Premium (incl. GST)", mode="lines+markers+text",
+        x=trend["Month_Label"], y=trend["Prem_Excl"],
+        name="Premium (excl. GST)", mode="lines+markers+text",
         line=dict(color="#388bfd", width=3),
         marker=dict(size=8, color="#388bfd", line=dict(color="#060d1a", width=2)),
         fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
-        text=[fmt(v) for v in trend["Prem_Incl"]],
-        textposition="top center", textfont=dict(color="#388bfd", size=10),
-    ))
-    fig_trend.add_trace(go.Scatter(
-        x=trend["Month_Str"], y=trend["Prem_Excl"],
-        name="Premium (excl. GST)", mode="lines+markers+text",
-        line=dict(color="#3fb950", width=2, dash="dash"),
-        marker=dict(size=7, color="#3fb950"),
         text=[fmt(v) for v in trend["Prem_Excl"]],
-        textposition="bottom center", textfont=dict(color="#3fb950", size=10),
+        textposition="top center", textfont=dict(color="#388bfd", size=10),
     ))
     fig_trend.update_layout(**cbase("Monthly Premium Trend (incl. vs excl. GST)", h=350))
     fig_trend.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
@@ -497,26 +490,6 @@ def show_client_page():
     analysis_table(dfc, "Specialization",      "🎯 Specialization wise Analysis",  "spec")
     analysis_table(dfc, "Latest Visit Source", "🔗 Lead Source wise Analysis",     "lead")
 
-    # ── RAW DATA TABLE ──
-    st.markdown("<div class='sec-head'>🗃️ Raw Data Table</div>", unsafe_allow_html=True)
-    show_cols = ["Client Name","State","City","Region","Association","Specialization",
-                 "Product","Insurer","Total Premium (excl. GST)","Total Premium (incl. GST)",
-                 "Total Sum Assured","Transasction Date","Latest Visit Source","Month"]
-    show_cols = [c for c in show_cols if c in dfc.columns]
-    st.dataframe(
-        dfc[show_cols].sort_values("Transasction Date", ascending=False).reset_index(drop=True),
-        use_container_width=True, height=380,
-        column_config={
-            "Transasction Date":         st.column_config.DateColumn("📅 Date", format="DD MMM YYYY"),
-            "Total Premium (excl. GST)": st.column_config.NumberColumn("💰 Premium (excl.)", format="₹%d"),
-            "Total Premium (incl. GST)": st.column_config.NumberColumn("💰 Premium (incl.)", format="₹%d"),
-            "Total Sum Assured":         st.column_config.NumberColumn("🛡️ Sum Assured",      format="₹%d"),
-        }
-    )
-    csv = dfc[show_cols].to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Download CSV", data=csv,
-                       file_name=f"client_data_{datetime.now().strftime('%Y%m%d')}.csv",
-                       mime="text/csv")
 
 
 # ─────────────────────────────────────────────
