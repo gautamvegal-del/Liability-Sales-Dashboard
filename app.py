@@ -684,6 +684,361 @@ with dl3:
     st.download_button("⬇️ Leader Summary", data=csv3, file_name=f"leader_summary_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv", use_container_width=True)
 
 
+
+# ═══════════════════════════════════════════════════════
+#  CLIENT ANALYTICS PAGE
+# ═══════════════════════════════════════════════════════
+
+def show_client_page():
+
+    # ── Load Client Data ──
+    @st.cache_data(ttl=300)
+    def load_client_data():
+        try:
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets.readonly",
+                "https://www.googleapis.com/auth/drive.readonly",
+            ]
+            creds  = Credentials.from_service_account_info(
+                st.secrets["gcp_service_account"], scopes=scopes
+            )
+            client = gspread.authorize(creds)
+            sheet  = client.open_by_key(st.secrets["sheet_id"]).get_worksheet_by_id(1240499347)
+            df     = pd.DataFrame(sheet.get_all_records())
+            return df, None
+        except Exception as e:
+            return None, str(e)
+
+    df_client, err = load_client_data()
+
+    if err or df_client is None or df_client.empty:
+        st.warning(f"⚠️ Client data load nahi hua: {err}")
+        return
+
+    # ── Data Prep ──
+    df_client["Transasction Date"] = pd.to_datetime(df_client["Transasction Date"], errors="coerce")
+    for col in ["Total Premium (incl. GST)", "Total Premium (excl. GST)", "Total Sum Assured"]:
+        if col in df_client.columns:
+            df_client[col] = pd.to_numeric(df_client[col], errors="coerce").fillna(0)
+
+    df_client["_MonthPeriod"] = df_client["Transasction Date"].dt.to_period("M")
+
+    # ── SIDEBAR FILTERS ──
+    with st.sidebar:
+        st.markdown("<div class='sec-head'>🔍 Client Filters</div>", unsafe_allow_html=True)
+
+        # Date filter
+        st.markdown("📅 &nbsp;Date Range", unsafe_allow_html=True)
+        min_d = df_client["Transasction Date"].min().date()
+        max_d = df_client["Transasction Date"].max().date()
+        d_range = st.date_input("", value=(min_d, max_d), min_value=min_d, max_value=max_d,
+                                key="client_date", label_visibility="collapsed")
+
+        # Month filter
+        if "Month" in df_client.columns:
+            month_opts = sorted(df_client["Month"].dropna().unique().tolist())
+            sel_months = st.multiselect("📅 Month", month_opts, default=month_opts, key="client_month")
+
+        # Categorical filters
+        client_filters = {
+            "Region":        "🌍 Region",
+            "State":         "📍 State",
+            "City":          "🏙️ City",
+            "Association":   "🏢 Association",
+            "Specialization":"🎯 Specialization",
+            "Product":       "📦 Product",
+            "Latest Visit Source": "🔗 Lead Source",
+        }
+        client_sel = {}
+        for col, label in client_filters.items():
+            if col in df_client.columns:
+                opts = sorted(df_client[col].dropna().unique().tolist())
+                client_sel[col] = st.multiselect(label, opts, default=opts, key=f"cf_{col}")
+
+        # Sum Assured filter
+        if "Total Sum Assured" in df_client.columns:
+            min_sa = int(df_client["Total Sum Assured"].min())
+            max_sa = int(df_client["Total Sum Assured"].max())
+            if min_sa < max_sa:
+                sa_range = st.slider("💰 Total Sum Assured", min_sa, max_sa, (min_sa, max_sa), key="client_sa")
+            else:
+                sa_range = (min_sa, max_sa)
+
+        if st.button("🔄 Refresh Client Data", use_container_width=True, key="client_refresh"):
+            st.cache_data.clear()
+            st.rerun()
+
+    # ── Apply Filters ──
+    dfc = df_client.copy()
+    if len(d_range) == 2:
+        dfc = dfc[(dfc["Transasction Date"].dt.date >= d_range[0]) &
+                  (dfc["Transasction Date"].dt.date <= d_range[1])]
+    if "Month" in dfc.columns and sel_months:
+        dfc = dfc[dfc["Month"].isin(sel_months)]
+    for col, sel in client_sel.items():
+        if sel:
+            dfc = dfc[dfc[col].isin(sel)]
+    if "Total Sum Assured" in dfc.columns:
+        dfc = dfc[(dfc["Total Sum Assured"] >= sa_range[0]) &
+                  (dfc["Total Sum Assured"] <= sa_range[1])]
+
+    # ── HEADER ──
+    h1, h2 = st.columns([5, 1])
+    with h1:
+        st.markdown("# 👥 Client Analytics")
+        st.markdown(f"<p style='margin-top:-10px;font-size:13px;'>{len(dfc):,} records · Filtered view</p>",
+                    unsafe_allow_html=True)
+    with h2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        now = datetime.now().strftime("%d %b %Y, %H:%M")
+        st.markdown(f"<div class='live-badge'><span class='dot'></span> LIVE &nbsp;·&nbsp; {now}</div>",
+                    unsafe_allow_html=True)
+    st.markdown("---")
+
+    # ── KPI CARDS ──
+    st.markdown("<div class='sec-head'>📊 Key Performance Indicators</div>", unsafe_allow_html=True)
+
+    total_prem_excl = dfc["Total Premium (excl. GST)"].sum() if "Total Premium (excl. GST)" in dfc.columns else 0
+    total_nop       = len(dfc)
+    unique_clients  = dfc["Client Name"].nunique() if "Client Name" in dfc.columns else 0
+    avg_prem        = total_prem_excl / unique_clients if unique_clients > 0 else 0
+    avg_sa          = dfc["Total Sum Assured"].mean() if "Total Sum Assured" in dfc.columns else 0
+
+    st.markdown(f"""
+    <div class='kpi-wrap'>
+      <div class='kpi-card c1'>
+        <div class='kpi-icon'>💰</div>
+        <div class='kpi-label'>Total Premium (excl. GST)</div>
+        <div class='kpi-value'>{fmt(total_prem_excl)}</div>
+        <div class='kpi-sub'>Net Premium</div>
+      </div>
+      <div class='kpi-card c2'>
+        <div class='kpi-icon'>📋</div>
+        <div class='kpi-label'>Number of Policies</div>
+        <div class='kpi-value'>{total_nop:,}</div>
+        <div class='kpi-sub'>Total policies in period</div>
+      </div>
+      <div class='kpi-card c3'>
+        <div class='kpi-icon'>👥</div>
+        <div class='kpi-label'>Total Clients</div>
+        <div class='kpi-value'>{unique_clients:,}</div>
+        <div class='kpi-sub'>Unique clients</div>
+      </div>
+      <div class='kpi-card c4'>
+        <div class='kpi-icon'>📊</div>
+        <div class='kpi-label'>Avg Premium / Client</div>
+        <div class='kpi-value'>{fmt(avg_prem)}</div>
+        <div class='kpi-sub'>Client value</div>
+      </div>
+      <div class='kpi-card c5'>
+        <div class='kpi-icon'>🛡️</div>
+        <div class='kpi-label'>Avg Sum Assured</div>
+        <div class='kpi-value'>{fmt(avg_sa)}</div>
+        <div class='kpi-sub'>Avg coverage per policy</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── CHART THEME ──
+    BG   = "rgba(0,0,0,0)"
+    GRID = "rgba(56,139,253,0.07)"
+    TXT  = "#8b949e"
+    PAL  = ["#388bfd","#3fb950","#d29922","#bc8cff","#ff7b72","#79c0ff","#56d364","#e3b341","#f0883e","#58a6ff"]
+
+    def cbase(title="", h=320):
+        return dict(
+            title=dict(text=title, font=dict(color="#c9d1d9", size=13, family="Outfit"), x=0.01),
+            paper_bgcolor=BG, plot_bgcolor=BG,
+            font=dict(color=TXT, family="Outfit"),
+            xaxis=dict(gridcolor=GRID, linecolor=GRID, tickfont=dict(color=TXT, size=11)),
+            yaxis=dict(gridcolor=GRID, linecolor=GRID, tickfont=dict(color=TXT, size=11)),
+            margin=dict(l=10, r=10, t=42, b=10),
+            legend=dict(font=dict(color=TXT, size=11), bgcolor="rgba(0,0,0,0)"),
+            height=h,
+        )
+
+    # ── MONTHLY TREND ──
+    st.markdown("<div class='sec-head'>📈 Monthly Premium Trend</div>", unsafe_allow_html=True)
+
+    trend = (
+        dfc.groupby("_MonthPeriod")
+        .agg(
+            Prem_Incl=("Total Premium (incl. GST)", "sum"),
+            Prem_Excl=("Total Premium (excl. GST)", "sum"),
+            NOP=("Client Name", "count"),
+        )
+        .reset_index().sort_values("_MonthPeriod")
+    )
+    trend["Month_Str"] = trend["_MonthPeriod"].astype(str)
+
+    fig_trend = go.Figure()
+    fig_trend.add_trace(go.Scatter(
+        x=trend["Month_Str"], y=trend["Prem_Incl"],
+        name="Premium (incl. GST)", mode="lines+markers+text",
+        line=dict(color="#388bfd", width=3),
+        marker=dict(size=8, color="#388bfd", line=dict(color="#060d1a", width=2)),
+        fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
+        text=[fmt(v) for v in trend["Prem_Incl"]],
+        textposition="top center", textfont=dict(color="#388bfd", size=10),
+    ))
+    fig_trend.add_trace(go.Scatter(
+        x=trend["Month_Str"], y=trend["Prem_Excl"],
+        name="Premium (excl. GST)", mode="lines+markers+text",
+        line=dict(color="#3fb950", width=2, dash="dash"),
+        marker=dict(size=7, color="#3fb950"),
+        text=[fmt(v) for v in trend["Prem_Excl"]],
+        textposition="bottom center", textfont=dict(color="#3fb950", size=10),
+    ))
+    fig_trend.update_layout(**cbase("Monthly Premium Trend (incl. vs excl. GST)", h=350))
+    fig_trend.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+
+    # ── PRODUCT PIE | REGION DONUT ──
+    st.markdown("<div class='sec-head'>📦 Product & Region Analysis</div>", unsafe_allow_html=True)
+    cp1, cp2 = st.columns(2)
+
+    with cp1:
+        prod = dfc.groupby("Product").agg(
+            Premium=("Total Premium (excl. GST)", "sum"),
+            NOP=("Client Name", "count")
+        ).reset_index().sort_values("Premium", ascending=False)
+        prod["Pct"] = (prod["Premium"] / prod["Premium"].sum() * 100).round(1)
+        fig_prod = go.Figure(go.Pie(
+            labels=prod["Product"], values=prod["Premium"],
+            hole=0,
+            marker=dict(colors=PAL[:len(prod)], line=dict(color="#060d1a", width=2)),
+            texttemplate="%{label}<br>%{percent}<br>NOP: %{customdata}",
+            customdata=prod["NOP"],
+            textfont=dict(color="white", size=10),
+        ))
+        fig_prod.update_layout(**cbase("Product wise Premium % & NOP", h=380), showlegend=False)
+        st.plotly_chart(fig_prod, use_container_width=True)
+
+    with cp2:
+        region = dfc.groupby("Region").agg(
+            Premium=("Total Premium (excl. GST)", "sum"),
+            NOP=("Client Name", "count")
+        ).reset_index().sort_values("Premium", ascending=False)
+        region["Pct"] = (region["Premium"] / region["Premium"].sum() * 100).round(1)
+        fig_region = go.Figure(go.Pie(
+            labels=region["Region"], values=region["Premium"],
+            hole=0.55,
+            marker=dict(colors=PAL[:len(region)], line=dict(color="#060d1a", width=3)),
+            texttemplate="%{label}<br>%{percent}<br>NOP: %{customdata}",
+            customdata=region["NOP"],
+            textfont=dict(color="white", size=10),
+            pull=[0.04] + [0]*(len(region)-1)
+        ))
+        fig_region.update_layout(**cbase("Region wise Premium % & NOP", h=380), showlegend=True)
+        st.plotly_chart(fig_region, use_container_width=True)
+
+
+    # ── TOP 10 CLIENTS ──
+    st.markdown("<div class='sec-head'>🏆 Top 10 Clients by Premium</div>", unsafe_allow_html=True)
+
+    top_clients = (
+        dfc.groupby("Client Name")["Total Premium (excl. GST)"].sum()
+        .nlargest(10).reset_index().sort_values("Total Premium (excl. GST)")
+    )
+    medals = ["#d29922","#8b949e","#c17c35"] + ["#388bfd"]*7
+    fig_top = go.Figure(go.Bar(
+        x=top_clients["Total Premium (excl. GST)"],
+        y=top_clients["Client Name"],
+        orientation="h",
+        marker=dict(color=medals[::-1][:len(top_clients)], line=dict(color="rgba(0,0,0,0)")),
+        text=[fmt(v) for v in top_clients["Total Premium (excl. GST)"]],
+        textposition="outside",
+        textfont=dict(color="#c9d1d9", size=11)
+    ))
+    fig_top.update_layout(**cbase("Top 10 Clients by Premium (excl. GST)", h=380))
+    st.plotly_chart(fig_top, use_container_width=True)
+
+
+    # ── HELPER: Analysis Table ──
+    def analysis_table(df, group_col, title, key):
+        st.markdown(f"<div class='sec-head'>{title}</div>", unsafe_allow_html=True)
+        tbl = df.groupby(group_col).agg(
+            Premium=("Total Premium (excl. GST)", "sum"),
+            NOP=("Client Name", "count"),
+        ).reset_index()
+        tbl["ATS"]             = (tbl["Premium"] / tbl["NOP"].replace(0,1)).round(0)
+        tbl["Contribution% (Premium)"] = (tbl["Premium"] / tbl["Premium"].sum() * 100).round(1)
+        tbl["Contribution% (NOP)"]     = (tbl["NOP"]     / tbl["NOP"].sum()     * 100).round(1)
+        tbl = tbl.sort_values("Premium", ascending=False).reset_index(drop=True)
+
+        # Total row
+        total_row = pd.DataFrame([{
+            group_col: "TOTAL",
+            "Premium": tbl["Premium"].sum(),
+            "NOP":     tbl["NOP"].sum(),
+            "ATS":     (tbl["Premium"].sum() / tbl["NOP"].sum()) if tbl["NOP"].sum() > 0 else 0,
+            "Contribution% (Premium)": 100.0,
+            "Contribution% (NOP)":     100.0,
+        }])
+        tbl = pd.concat([tbl, total_row], ignore_index=True)
+
+        tbl_display = tbl.copy()
+        tbl_display["Premium"] = tbl_display["Premium"].apply(fmt)
+        tbl_display["ATS"]     = tbl_display["ATS"].apply(fmt)
+        tbl_display["Contribution% (Premium)"] = tbl_display["Contribution% (Premium)"].apply(lambda x: f"{x:.1f}%")
+        tbl_display["Contribution% (NOP)"]     = tbl_display["Contribution% (NOP)"].apply(lambda x: f"{x:.1f}%")
+
+        st.dataframe(
+            tbl_display,
+            use_container_width=True,
+            hide_index=True,
+            height=min(50 + len(tbl_display) * 38, 500),
+            column_config={
+                group_col:                    st.column_config.TextColumn(group_col),
+                "Premium":                    st.column_config.TextColumn("💰 Premium"),
+                "NOP":                        st.column_config.NumberColumn("📋 NOP"),
+                "ATS":                        st.column_config.TextColumn("📊 ATS"),
+                "Contribution% (Premium)":    st.column_config.TextColumn("% Premium"),
+                "Contribution% (NOP)":        st.column_config.TextColumn("% NOP"),
+            }
+        )
+
+    # ── ANALYSIS TABLES ──
+    analysis_table(dfc, "State",               "📍 State wise Analysis",           "state")
+    analysis_table(dfc, "Association",          "🏢 Association wise Analysis",      "assoc")
+    analysis_table(dfc, "Specialization",       "🎯 Specialization wise Analysis",   "spec")
+    analysis_table(dfc, "Latest Visit Source",  "🔗 Lead Source wise Analysis",      "lead")
+
+
+    # ── RAW DATA TABLE ──
+    st.markdown("<div class='sec-head'>🗃️ Raw Data Table</div>", unsafe_allow_html=True)
+    show_cols = ["Client Name","State","City","Region","Association","Specialization",
+                 "Product","Insurer","Total Premium (excl. GST)","Total Premium (incl. GST)",
+                 "Total Sum Assured","Transasction Date","Latest Visit Source","Month"]
+    show_cols = [c for c in show_cols if c in dfc.columns]
+
+    st.dataframe(
+        dfc[show_cols].sort_values("Transasction Date", ascending=False).reset_index(drop=True),
+        use_container_width=True, height=380,
+        column_config={
+            "Transasction Date":          st.column_config.DateColumn("📅 Date", format="DD MMM YYYY"),
+            "Total Premium (excl. GST)":  st.column_config.NumberColumn("💰 Premium (excl.)", format="₹%d"),
+            "Total Premium (incl. GST)":  st.column_config.NumberColumn("💰 Premium (incl.)", format="₹%d"),
+            "Total Sum Assured":          st.column_config.NumberColumn("🛡️ Sum Assured",      format="₹%d"),
+        }
+    )
+
+    csv = dfc[show_cols].to_csv(index=False).encode("utf-8")
+    st.download_button("⬇️ Download CSV", data=csv,
+                       file_name=f"client_data_{datetime.now().strftime('%Y%m%d')}.csv",
+                       mime="text/csv")
+
+
+
+# ─────────────────────────────────────────────
+#  PAGE ROUTER
+# ─────────────────────────────────────────────
+if page == "👥 Client Analytics":
+    show_client_page()
+
 # ─────────────────────────────────────────────
 #  FOOTER
 # ─────────────────────────────────────────────
