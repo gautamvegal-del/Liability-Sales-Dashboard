@@ -929,25 +929,28 @@ elif page == "📞 Calling Dashboard":
         # Talktime — HH:MM:SS to seconds convert
         def parse_talktime(val):
             try:
-                parts = str(val).strip().split(":")
+                val = str(val).strip()
+                if val in ["", "0", "0:00:00", "00:00:00"]:
+                    return 0
+                parts = val.split(":")
                 if len(parts) == 3:
                     return int(parts[0])*3600 + int(parts[1])*60 + int(parts[2])
                 elif len(parts) == 2:
                     return int(parts[0])*60 + int(parts[1])
                 else:
-                    return float(val)
+                    return 0
             except:
                 return 0
 
         if "Talktime" in dfc.columns:
             dfc["_talktime_sec"] = dfc["Talktime"].apply(parse_talktime)
-            total_talktime_sec = dfc["_talktime_sec"].sum()
-            avg_talktime_sec   = dfc["_talktime_sec"].mean()
-            total_tt_str = f"{int(total_talktime_sec//3600)}h {int((total_talktime_sec%3600)//60)}m"
-            avg_tt_str   = f"{int(avg_talktime_sec//60)}m {int(avg_talktime_sec%60)}s"
         else:
-            total_tt_str = "0h 0m"
-            avg_tt_str   = "0m 0s"
+            dfc["_talktime_sec"] = 0
+
+        total_talktime_sec = dfc["_talktime_sec"].sum()
+        avg_talktime_sec   = dfc[dfc["_talktime_sec"] > 0]["_talktime_sec"].mean() if len(dfc[dfc["_talktime_sec"] > 0]) > 0 else 0
+        total_tt_str = f"{int(total_talktime_sec//3600)}h {int((total_talktime_sec%3600)//60)}m {int(total_talktime_sec%60)}s"
+        avg_tt_str   = f"{int(avg_talktime_sec//60)}m {int(avg_talktime_sec%60)}s"
 
         # Connection Rate — exact "Connected" match
         connected_calls = len(dfc[dfc["System Disposition"] == "Connected"]) if "System Disposition" in dfc.columns else 0
@@ -1059,17 +1062,31 @@ elif page == "📞 Calling Dashboard":
         if "Employee Name" in dfc.columns:
             agent = dfc.groupby("Employee Name").agg(
                 Total_Calls=("Employee Name", "count"),
-                Unique_Dials=("Unique Dials", "sum"),
-                Total_Talktime=("Talktime", "sum"),
-                Avg_Talktime=("Talktime", "mean"),
+                Unique_Dials=("Unique Dials", lambda x: (x == 1).sum()),
+                Total_Talktime=("_talktime_sec", "sum"),
+                Avg_Talktime=("_talktime_sec", lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0),
             ).reset_index()
-            agent["Connected"] = dfc[dfc["System Disposition"].str.lower().str.contains("connect", na=False)].groupby("Employee Name").size().reindex(agent["Employee Name"]).fillna(0).astype(int).values
+            connected_df = dfc[dfc["System Disposition"] == "Connected"].groupby("Employee Name").size()
+            agent["Connected"] = connected_df.reindex(agent["Employee Name"]).fillna(0).astype(int).values
             agent["Connection Rate%"] = (agent["Connected"] / agent["Total_Calls"] * 100).round(1)
-            agent["Total_Talktime"]   = agent["Total_Talktime"].apply(lambda x: f"{int(x//60)}h {int(x%60)}m")
-            agent["Avg_Talktime"]     = agent["Avg_Talktime"].apply(lambda x: f"{int(x)}s")
+            agent["Total_Talktime"] = agent["Total_Talktime"].apply(lambda x: f"{int(x//3600)}h {int((x%3600)//60)}m {int(x%60)}s")
+            agent["Avg_Talktime"]   = agent["Avg_Talktime"].apply(lambda x: f"{int(x//60)}m {int(x%60)}s")
             agent = agent.sort_values("Total_Calls", ascending=False).reset_index(drop=True)
+            # Total row
+            total_row = pd.DataFrame([{
+                "Employee Name": "TOTAL",
+                "Total_Calls":   agent["Total_Calls"].sum() if "Total_Calls" in agent.columns else 0,
+                "Unique_Dials":  agent["Unique_Dials"].sum() if "Unique_Dials" in agent.columns else 0,
+                "Total_Talktime": f"{int(total_talktime_sec//3600)}h {int((total_talktime_sec%3600)//60)}m {int(total_talktime_sec%60)}s",
+                "Avg_Talktime":  avg_tt_str,
+                "Connected":     agent["Connected"].sum() if "Connected" in agent.columns else 0,
+                "Connection Rate%": round(agent["Connected"].sum() / agent["Total_Calls"].sum() * 100, 1) if agent["Total_Calls"].sum() > 0 else 0,
+            }])
             agent.columns = ["👤 Agent", "📞 Total Calls", "🔢 Unique Dials",
                              "⏱️ Total Talktime", "📊 Avg Talktime", "✅ Connected", "📈 Connection Rate%"]
+            total_row.columns = ["👤 Agent", "📞 Total Calls", "🔢 Unique Dials",
+                                 "⏱️ Total Talktime", "📊 Avg Talktime", "✅ Connected", "📈 Connection Rate%"]
+            agent = pd.concat([agent, total_row], ignore_index=True)
             st.dataframe(agent, use_container_width=True, hide_index=True,
                          height=min(50 + len(agent) * 38, 500))
 
@@ -1077,6 +1094,34 @@ elif page == "📞 Calling Dashboard":
         st.markdown("<div class='sec-head'>🏅 TL wise Team Performance</div>", unsafe_allow_html=True)
         if "Reporting TL" in dfc.columns:
             tl = dfc.groupby("Reporting TL").agg(
+                Total_Calls=("Employee Name", "count"),
+                Unique_Dials=("Unique Dials", lambda x: (x == 1).sum()),
+                Total_Talktime=("_talktime_sec", "sum"),
+                Agents=("Employee Name", "nunique"),
+            ).reset_index()
+            connected_tl = dfc[dfc["System Disposition"] == "Connected"].groupby("Reporting TL").size()
+            tl["Connected"] = connected_tl.reindex(tl["Reporting TL"]).fillna(0).astype(int).values
+            tl["Connection Rate%"] = (tl["Connected"] / tl["Total_Calls"] * 100).round(1)
+            tl["Total_Talktime"] = tl["Total_Talktime"].apply(lambda x: f"{int(x//3600)}h {int((x%3600)//60)}m {int(x%60)}s")
+            tl = tl.sort_values("Total_Calls", ascending=False).reset_index(drop=True)
+            # Total row
+            tl_total = pd.DataFrame([{
+                "Reporting TL":  "TOTAL",
+                "Total_Calls":   tl["Total_Calls"].sum(),
+                "Unique_Dials":  tl["Unique_Dials"].sum(),
+                "Total_Talktime": f"{int(total_talktime_sec//3600)}h {int((total_talktime_sec%3600)//60)}m {int(total_talktime_sec%60)}s",
+                "Agents":        dfc["Employee Name"].nunique(),
+                "Connected":     tl["Connected"].sum(),
+                "Connection Rate%": round(tl["Connected"].sum() / tl["Total_Calls"].sum() * 100, 1) if tl["Total_Calls"].sum() > 0 else 0,
+            }])
+            tl.columns = ["🏅 TL Name", "📞 Total Calls", "🔢 Unique Dials",
+                          "⏱️ Total Talktime", "👥 Agents", "✅ Connected", "📈 Connection Rate%"]
+            tl_total.columns = ["🏅 TL Name", "📞 Total Calls", "🔢 Unique Dials",
+                                "⏱️ Total Talktime", "👥 Agents", "✅ Connected", "📈 Connection Rate%"]
+            tl = pd.concat([tl, tl_total], ignore_index=True)
+            st.dataframe(tl, use_container_width=True, hide_index=True,
+                         height=min(50 + len(tl) * 38, 500))
+            l = dfc.groupby("Reporting TL").agg(
                 Total_Calls=("Employee Name", "count"),
                 Unique_Dials=("Unique Dials", "sum"),
                 Total_Talktime=("Talktime", "sum"),
