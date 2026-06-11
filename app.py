@@ -857,9 +857,8 @@ elif page == "📞 Calling Dashboard":
     else:
         # ── Data Prep ──
         df_call["Call Date"] = pd.to_datetime(df_call["Call Date"], errors="coerce")
-        for col in ["Unique Dials", "Talktime"]:
-            if col in df_call.columns:
-                df_call[col] = pd.to_numeric(df_call[col], errors="coerce").fillna(0)
+        if "Unique Dials" in df_call.columns:
+            df_call["Unique Dials"] = pd.to_numeric(df_call["Unique Dials"], errors="coerce").fillna(0)
 
         # ── SIDEBAR FILTERS ──
         with st.sidebar:
