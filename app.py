@@ -947,9 +947,26 @@ elif page == "📞 Calling Dashboard":
 
         dfc = dfc.copy()
         if "Talktime" in dfc.columns:
-            dfc["_talktime_sec"] = dfc["Talktime"].astype(str).apply(parse_talktime)
+            def safe_parse(val):
+                try:
+                    s = str(val).strip()
+                    if not s or s in ["0", "0.0", "0:00:00", "00:00:00"]:
+                        return 0
+                    if ":" in s:
+                        p = s.split(":")
+                        if len(p) == 3:
+                            return int(p[0])*3600 + int(p[1])*60 + int(float(p[2]))
+                    f = float(s)
+                    if 0 < f < 1:
+                        return int(f * 86400)
+                    return int(f)
+                except:
+                    return 0
+            dfc["_talktime_sec"] = dfc["Talktime"].apply(safe_parse)
         else:
             dfc["_talktime_sec"] = 0
+        
+        st.write("DEBUG talktime sum:", dfc["_talktime_sec"].sum())
         total_talktime_sec = dfc["_talktime_sec"].sum()
         avg_talktime_sec   = dfc[dfc["_talktime_sec"] > 0]["_talktime_sec"].mean() if len(dfc[dfc["_talktime_sec"] > 0]) > 0 else 0
         total_tt_str = f"{int(total_talktime_sec//3600)}h {int((total_talktime_sec%3600)//60)}m {int(total_talktime_sec%60)}s"
