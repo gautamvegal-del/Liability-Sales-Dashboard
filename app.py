@@ -929,16 +929,21 @@ elif page == "📞 Calling Dashboard":
         # Talktime — HH:MM:SS to seconds convert
         def parse_talktime(val):
             try:
-                val = str(val).strip()
-                if val in ["", "0", "0:00:00", "00:00:00"]:
+                val_str = str(val).strip()
+                if val_str in ["", "0", "0:00:00", "00:00:00", "0.0"]:
                     return 0
-                parts = val.split(":")
-                if len(parts) == 3:
-                    return int(parts[0])*3600 + int(parts[1])*60 + int(parts[2])
-                elif len(parts) == 2:
-                    return int(parts[0])*60 + int(parts[1])
-                else:
-                    return 0
+                # HH:MM:SS string format
+                if ":" in val_str:
+                    parts = val_str.split(":")
+                    if len(parts) == 3:
+                        return int(parts[0])*3600 + int(parts[1])*60 + int(float(parts[2]))
+                    elif len(parts) == 2:
+                        return int(parts[0])*60 + int(float(parts[1]))
+                # Google Sheets decimal format (fraction of a day)
+                val_float = float(val_str)
+                if 0 < val_float < 1:
+                    return int(val_float * 86400)  # 1 day = 86400 seconds
+                return int(val_float)
             except:
                 return 0
 
