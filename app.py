@@ -1126,20 +1126,7 @@ elif page == "📞 Calling Dashboard":
             tl = pd.concat([tl, tl_total], ignore_index=True)
             st.dataframe(tl, use_container_width=True, hide_index=True,
                          height=min(50 + len(tl) * 38, 500))
-            l = dfc.groupby("Reporting TL").agg(
-                Total_Calls=("Employee Name", "count"),
-                Unique_Dials=("Unique Dials", "sum"),
-                Total_Talktime=("Talktime", "sum"),
-                Agents=("Employee Name", "nunique"),
-            ).reset_index()
-            tl["Connected"] = dfc[dfc["System Disposition"].str.lower().str.contains("connect", na=False)].groupby("Reporting TL").size().reindex(tl["Reporting TL"]).fillna(0).astype(int).values
-            tl["Connection Rate%"] = (tl["Connected"] / tl["Total_Calls"] * 100).round(1)
-            tl["Total_Talktime"]   = tl["Total_Talktime"].apply(lambda x: f"{int(x//60)}h {int(x%60)}m")
-            tl = tl.sort_values("Total_Calls", ascending=False).reset_index(drop=True)
-            tl.columns = ["🏅 TL Name", "📞 Total Calls", "🔢 Unique Dials",
-                          "⏱️ Total Talktime", "👥 Agents", "✅ Connected", "📈 Connection Rate%"]
-            st.dataframe(tl, use_container_width=True, hide_index=True,
-                         height=min(50 + len(tl) * 38, 500))
+            
             
 elif page == "🎯 Leads Utilisation":
     st.markdown("# 🎯 Leads Utilisation")
