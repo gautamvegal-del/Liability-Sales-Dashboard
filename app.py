@@ -948,8 +948,10 @@ elif page == "📞 Calling Dashboard":
                 return 0
 
         if "Talktime" in dfc.columns:
+            df_call["_talktime_sec"] = df_call["Talktime"].apply(parse_talktime)
             dfc["_talktime_sec"] = dfc["Talktime"].apply(parse_talktime)
         else:
+            df_call["_talktime_sec"] = 0
             dfc["_talktime_sec"] = 0
 
         total_talktime_sec = dfc["_talktime_sec"].sum()
