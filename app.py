@@ -926,33 +926,27 @@ elif page == "📞 Calling Dashboard":
         # Unique Dials — sirf 1 wali rows
         total_unique = len(dfc[dfc["Unique Dials"] == 1]) if "Unique Dials" in dfc.columns else 0
 
-        # Talktime — HH:MM:SS to seconds convert
+        # Talktime parse karo filters apply hone ke baad
         def parse_talktime(val):
             try:
                 val_str = str(val).strip()
                 if val_str in ["", "0", "0:00:00", "00:00:00", "0.0"]:
                     return 0
-                # HH:MM:SS string format
                 if ":" in val_str:
                     parts = val_str.split(":")
                     if len(parts) == 3:
                         return int(parts[0])*3600 + int(parts[1])*60 + int(float(parts[2]))
                     elif len(parts) == 2:
                         return int(parts[0])*60 + int(float(parts[1]))
-                # Google Sheets decimal format (fraction of a day)
                 val_float = float(val_str)
                 if 0 < val_float < 1:
-                    return int(val_float * 86400)  # 1 day = 86400 seconds
+                    return int(val_float * 86400)
                 return int(val_float)
             except:
                 return 0
 
-        if "Talktime" in dfc.columns:
-            df_call["_talktime_sec"] = df_call["Talktime"].apply(parse_talktime)
-            dfc["_talktime_sec"] = dfc["Talktime"].apply(parse_talktime)
-        else:
-            df_call["_talktime_sec"] = 0
-            dfc["_talktime_sec"] = 0
+        dfc = dfc.copy()
+        dfc["_talktime_sec"] = dfc["Talktime"].apply(parse_talktime) if "Talktime" in dfc.columns else 0
 
         total_talktime_sec = dfc["_talktime_sec"].sum()
         avg_talktime_sec   = dfc[dfc["_talktime_sec"] > 0]["_talktime_sec"].mean() if len(dfc[dfc["_talktime_sec"] > 0]) > 0 else 0
