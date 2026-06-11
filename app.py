@@ -1105,7 +1105,7 @@ elif page == "📞 Calling Dashboard":
                 Agents=("Employee Name", "nunique"),
             ).reset_index()
             connected_tl = dfc[dfc["System Disposition"] == "Connected"].groupby("Reporting TL").size()
-            tl["Connected"] = connected_tl.reindex(tl["Reporting TL"]).fillna(0).astype(int).values
+            tl["Connected"] = tl["Reporting TL"].map(connected_tl).fillna(0).astype(int)
             tl["Connection Rate%"] = (tl["Connected"] / tl["Total_Calls"] * 100).round(1)
             tl["Total_Talktime"] = tl["Total_Talktime"].apply(lambda x: f"{int(x//3600)}h {int((x%3600)//60)}m {int(x%60)}s")
             tl = tl.sort_values("Total_Calls", ascending=False).reset_index(drop=True)
