@@ -921,13 +921,37 @@ elif page == "📞 Calling Dashboard":
 
         # ── KPI CARDS ──
         st.markdown("<div class='sec-head'>📊 Key Performance Indicators</div>", unsafe_allow_html=True)
-        total_calls      = len(dfc)
-        total_unique     = dfc["Unique Dials"].sum() if "Unique Dials" in dfc.columns else 0
-        total_talktime   = dfc["Talktime"].sum() if "Talktime" in dfc.columns else 0
-        avg_talktime     = dfc["Talktime"].mean() if "Talktime" in dfc.columns else 0
-        connected_calls  = len(dfc[dfc["System Disposition"].str.lower().str.contains("connect", na=False)]) if "System Disposition" in dfc.columns else 0
-        connection_rate  = round(connected_calls / total_calls * 100, 1) if total_calls > 0 else 0
+        total_calls = len(dfc)
 
+        # Unique Dials — sirf 1 wali rows
+        total_unique = len(dfc[dfc["Unique Dials"] == 1]) if "Unique Dials" in dfc.columns else 0
+
+        # Talktime — HH:MM:SS to seconds convert
+        def parse_talktime(val):
+            try:
+                parts = str(val).strip().split(":")
+                if len(parts) == 3:
+                    return int(parts[0])*3600 + int(parts[1])*60 + int(parts[2])
+                elif len(parts) == 2:
+                    return int(parts[0])*60 + int(parts[1])
+                else:
+                    return float(val)
+            except:
+                return 0
+
+        if "Talktime" in dfc.columns:
+            dfc["_talktime_sec"] = dfc["Talktime"].apply(parse_talktime)
+            total_talktime_sec = dfc["_talktime_sec"].sum()
+            avg_talktime_sec   = dfc["_talktime_sec"].mean()
+            total_tt_str = f"{int(total_talktime_sec//3600)}h {int((total_talktime_sec%3600)//60)}m"
+            avg_tt_str   = f"{int(avg_talktime_sec//60)}m {int(avg_talktime_sec%60)}s"
+        else:
+            total_tt_str = "0h 0m"
+            avg_tt_str   = "0m 0s"
+
+        # Connection Rate — exact "Connected" match
+        connected_calls = len(dfc[dfc["System Disposition"] == "Connected"]) if "System Disposition" in dfc.columns else 0
+        connection_rate = round(connected_calls / total_calls * 100, 1) if total_calls > 0 else 0
         st.markdown(f"""
         <div class='kpi-wrap'>
           <div class='kpi-card c1'><div class='kpi-icon'>📞</div>
@@ -940,11 +964,11 @@ elif page == "📞 Calling Dashboard":
             <div class='kpi-sub'>Unique numbers dialed</div></div>
           <div class='kpi-card c3'><div class='kpi-icon'>⏱️</div>
             <div class='kpi-label'>Total Talktime</div>
-            <div class='kpi-value'>{int(total_talktime//60)}h {int(total_talktime%60)}m</div>
+            <div class='kpi-value'>{total_tt_str}</div>
             <div class='kpi-sub'>Total talk duration</div></div>
           <div class='kpi-card c4'><div class='kpi-icon'>📊</div>
             <div class='kpi-label'>Avg Talktime/Call</div>
-            <div class='kpi-value'>{int(avg_talktime)}s</div>
+            <div class='kpi-value'>{avg_tt_str}</div>
             <div class='kpi-sub'>Average per call</div></div>
           <div class='kpi-card c5'><div class='kpi-icon'>✅</div>
             <div class='kpi-label'>Connection Rate</div>
