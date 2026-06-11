@@ -833,10 +833,240 @@ if page == "📊 Sales Dashboard":
 elif page == "👥 Client Analytics":
     show_client_page()
 elif page == "📞 Calling Dashboard":
-    st.markdown("# 📞 Calling Dashboard")
-    st.markdown("---")
-    st.info("🚧 Coming Soon — Calling data yahan show hoga!")
+    # ── Load Calling Data ──
+    @st.cache_data(ttl=300)
+    def load_calling_data():
+        try:
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets.readonly",
+                "https://www.googleapis.com/auth/drive.readonly",
+            ]
+            creds  = Credentials.from_service_account_info(
+                st.secrets["gcp_service_account"], scopes=scopes
+            )
+            client = gspread.authorize(creds)
+            sheet  = client.open_by_key(st.secrets["sheet_id"]).get_worksheet_by_id(2102431440)
+            df     = pd.DataFrame(sheet.get_all_records())
+            return df, None
+        except Exception as e:
+            return None, str(e)
 
+    df_call, err = load_calling_data()
+    if err or df_call is None or df_call.empty:
+        st.warning(f"⚠️ Calling data load nahi hua: {err}")
+    else:
+        # ── Data Prep ──
+        df_call["Call Date"] = pd.to_datetime(df_call["Call Date"], errors="coerce")
+        for col in ["Unique Dials", "Talktime"]:
+            if col in df_call.columns:
+                df_call[col] = pd.to_numeric(df_call[col], errors="coerce").fillna(0)
+
+        # ── SIDEBAR FILTERS ──
+        with st.sidebar:
+            st.markdown("<div class='sec-head'>🔍 Calling Filters</div>", unsafe_allow_html=True)
+
+            # Month filter
+            if "Month" in df_call.columns:
+                month_opts = sorted(df_call["Month"].dropna().unique().tolist(), key=str)
+                sel_months_call = st.multiselect("📅 Month", month_opts, default=month_opts, key="call_month")
+            else:
+                sel_months_call = []
+
+            # Date Range
+            min_d = df_call["Call Date"].min().date()
+            max_d = df_call["Call Date"].max().date()
+            d_range_call = st.date_input("📆 Date Range", value=(min_d, max_d),
+                                          min_value=min_d, max_value=max_d, key="call_date")
+
+            # Categorical filters
+            call_filters = {
+                "Employee Name":    "👤 Employee Name",
+                "Reporting TL":     "🏅 Reporting TL",
+                "System Disposition":"📋 System Disposition",
+                "Label Disposition": "🏷️ Label Disposition",
+            }
+            call_sel = {}
+            for col, label in call_filters.items():
+                if col in df_call.columns:
+                    opts = sorted(df_call[col].dropna().unique().tolist(), key=str)
+                    call_sel[col] = st.multiselect(label, opts, default=opts, key=f"call_{col}")
+
+            if st.button("🔄 Refresh Calling Data", use_container_width=True, key="call_refresh"):
+                st.cache_data.clear()
+                st.rerun()
+
+        # ── Apply Filters ──
+        dfc = df_call.copy()
+        if sel_months_call:
+            dfc = dfc[dfc["Month"].isin(sel_months_call)]
+        if len(d_range_call) == 2:
+            dfc = dfc[(dfc["Call Date"].dt.date >= d_range_call[0]) &
+                      (dfc["Call Date"].dt.date <= d_range_call[1])]
+        for col, sel in call_sel.items():
+            if sel:
+                dfc = dfc[dfc[col].isin(sel)]
+
+        # ── HEADER ──
+        h1, h2 = st.columns([5, 1])
+        with h1:
+            st.markdown("# 📞 Calling Dashboard")
+            st.markdown(f"<p style='margin-top:-10px;font-size:13px;'>{len(dfc):,} records · Filtered view</p>",
+                        unsafe_allow_html=True)
+        with h2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            now = datetime.now().strftime("%d %b %Y, %H:%M")
+            st.markdown(f"<div class='live-badge'><span class='dot'></span> LIVE &nbsp;·&nbsp; {now}</div>",
+                        unsafe_allow_html=True)
+        st.markdown("---")
+
+        # ── KPI CARDS ──
+        st.markdown("<div class='sec-head'>📊 Key Performance Indicators</div>", unsafe_allow_html=True)
+        total_calls      = len(dfc)
+        total_unique     = dfc["Unique Dials"].sum() if "Unique Dials" in dfc.columns else 0
+        total_talktime   = dfc["Talktime"].sum() if "Talktime" in dfc.columns else 0
+        avg_talktime     = dfc["Talktime"].mean() if "Talktime" in dfc.columns else 0
+        connected_calls  = len(dfc[dfc["System Disposition"].str.lower().str.contains("connect", na=False)]) if "System Disposition" in dfc.columns else 0
+        connection_rate  = round(connected_calls / total_calls * 100, 1) if total_calls > 0 else 0
+
+        st.markdown(f"""
+        <div class='kpi-wrap'>
+          <div class='kpi-card c1'><div class='kpi-icon'>📞</div>
+            <div class='kpi-label'>Total Calls</div>
+            <div class='kpi-value'>{total_calls:,}</div>
+            <div class='kpi-sub'>Total call records</div></div>
+          <div class='kpi-card c2'><div class='kpi-icon'>🔢</div>
+            <div class='kpi-label'>Unique Dials</div>
+            <div class='kpi-value'>{int(total_unique):,}</div>
+            <div class='kpi-sub'>Unique numbers dialed</div></div>
+          <div class='kpi-card c3'><div class='kpi-icon'>⏱️</div>
+            <div class='kpi-label'>Total Talktime</div>
+            <div class='kpi-value'>{int(total_talktime//60)}h {int(total_talktime%60)}m</div>
+            <div class='kpi-sub'>Total talk duration</div></div>
+          <div class='kpi-card c4'><div class='kpi-icon'>📊</div>
+            <div class='kpi-label'>Avg Talktime/Call</div>
+            <div class='kpi-value'>{int(avg_talktime)}s</div>
+            <div class='kpi-sub'>Average per call</div></div>
+          <div class='kpi-card c5'><div class='kpi-icon'>✅</div>
+            <div class='kpi-label'>Connection Rate</div>
+            <div class='kpi-value'>{connection_rate}%</div>
+            <div class='kpi-sub'>Connected / Total calls</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── CHART THEME ──
+        C_PAL = ["#388bfd","#3fb950","#d29922","#bc8cff","#ff7b72","#79c0ff","#56d364","#e3b341","#f0883e","#58a6ff"]
+        def cbase(title="", h=320):
+            return dict(
+                title=dict(text=title, font=dict(color="#c9d1d9", size=13, family="Outfit"), x=0.01),
+                paper_bgcolor=BG, plot_bgcolor=BG,
+                font=dict(color=TXT, family="Outfit"),
+                xaxis=dict(gridcolor=GRID, linecolor=GRID, tickfont=dict(color=TXT, size=11)),
+                yaxis=dict(gridcolor=GRID, linecolor=GRID, tickfont=dict(color=TXT, size=11)),
+                margin=dict(l=10, r=10, t=42, b=10),
+                legend=dict(font=dict(color=TXT, size=11), bgcolor="rgba(0,0,0,0)"),
+                height=h,
+            )
+
+        # ── MONTHLY TREND ──
+        st.markdown("<div class='sec-head'>📈 Monthly Call Trend</div>", unsafe_allow_html=True)
+        if "Month" in dfc.columns:
+            trend = dfc.groupby("Month").agg(
+                Total_Calls=("Employee Name", "count"),
+                Unique_Dials=("Unique Dials", "sum"),
+                Talktime=("Talktime", "sum"),
+            ).reset_index()
+            fig_trend = go.Figure()
+            fig_trend.add_trace(go.Scatter(
+                x=trend["Month"], y=trend["Total_Calls"],
+                name="Total Calls", mode="lines+markers+text",
+                line=dict(color="#388bfd", width=3),
+                marker=dict(size=8, color="#388bfd", line=dict(color="#060d1a", width=2)),
+                fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
+                text=trend["Total_Calls"].astype(str),
+                textposition="top center", textfont=dict(color="#388bfd", size=10),
+            ))
+            fig_trend.add_trace(go.Scatter(
+                x=trend["Month"], y=trend["Unique_Dials"],
+                name="Unique Dials", mode="lines+markers+text",
+                line=dict(color="#3fb950", width=2, dash="dash"),
+                marker=dict(size=7, color="#3fb950"),
+                text=trend["Unique_Dials"].astype(str),
+                textposition="bottom center", textfont=dict(color="#3fb950", size=10),
+            ))
+            fig_trend.update_layout(**cbase("Monthly Call Trend — Total Calls vs Unique Dials", h=350))
+            fig_trend.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
+            st.plotly_chart(fig_trend, use_container_width=True)
+
+        # ── DISPOSITION CHARTS ──
+        st.markdown("<div class='sec-head'>📋 Disposition Analysis</div>", unsafe_allow_html=True)
+        d1, d2 = st.columns(2)
+        with d1:
+            if "System Disposition" in dfc.columns:
+                sys_disp = dfc["System Disposition"].value_counts().reset_index()
+                sys_disp.columns = ["Disposition", "Count"]
+                fig_sys = go.Figure(go.Pie(
+                    labels=sys_disp["Disposition"], values=sys_disp["Count"],
+                    hole=0.55,
+                    marker=dict(colors=C_PAL[:len(sys_disp)], line=dict(color="#060d1a", width=3)),
+                    texttemplate="%{label}<br>%{percent}",
+                    textfont=dict(color="white", size=10),
+                    pull=[0.04] + [0]*(len(sys_disp)-1)
+                ))
+                fig_sys.update_layout(**cbase("System Disposition Breakdown", h=350), showlegend=True)
+                st.plotly_chart(fig_sys, use_container_width=True)
+        with d2:
+            if "Label Disposition" in dfc.columns:
+                lbl_disp = dfc["Label Disposition"].value_counts().reset_index()
+                lbl_disp.columns = ["Disposition", "Count"]
+                fig_lbl = go.Figure(go.Bar(
+                    x=lbl_disp["Count"], y=lbl_disp["Disposition"],
+                    orientation="h",
+                    marker=dict(color=C_PAL[:len(lbl_disp)], line=dict(color="rgba(0,0,0,0)")),
+                    text=lbl_disp["Count"].astype(str),
+                    textposition="outside",
+                    textfont=dict(color="#c9d1d9", size=11)
+                ))
+                fig_lbl.update_layout(**cbase("Label Disposition Analysis", h=350))
+                st.plotly_chart(fig_lbl, use_container_width=True)
+
+        # ── AGENT PERFORMANCE TABLE ──
+        st.markdown("<div class='sec-head'>👤 Agent wise Performance</div>", unsafe_allow_html=True)
+        if "Employee Name" in dfc.columns:
+            agent = dfc.groupby("Employee Name").agg(
+                Total_Calls=("Employee Name", "count"),
+                Unique_Dials=("Unique Dials", "sum"),
+                Total_Talktime=("Talktime", "sum"),
+                Avg_Talktime=("Talktime", "mean"),
+            ).reset_index()
+            agent["Connected"] = dfc[dfc["System Disposition"].str.lower().str.contains("connect", na=False)].groupby("Employee Name").size().reindex(agent["Employee Name"]).fillna(0).astype(int).values
+            agent["Connection Rate%"] = (agent["Connected"] / agent["Total_Calls"] * 100).round(1)
+            agent["Total_Talktime"]   = agent["Total_Talktime"].apply(lambda x: f"{int(x//60)}h {int(x%60)}m")
+            agent["Avg_Talktime"]     = agent["Avg_Talktime"].apply(lambda x: f"{int(x)}s")
+            agent = agent.sort_values("Total_Calls", ascending=False).reset_index(drop=True)
+            agent.columns = ["👤 Agent", "📞 Total Calls", "🔢 Unique Dials",
+                             "⏱️ Total Talktime", "📊 Avg Talktime", "✅ Connected", "📈 Connection Rate%"]
+            st.dataframe(agent, use_container_width=True, hide_index=True,
+                         height=min(50 + len(agent) * 38, 500))
+
+        # ── TL PERFORMANCE TABLE ──
+        st.markdown("<div class='sec-head'>🏅 TL wise Team Performance</div>", unsafe_allow_html=True)
+        if "Reporting TL" in dfc.columns:
+            tl = dfc.groupby("Reporting TL").agg(
+                Total_Calls=("Employee Name", "count"),
+                Unique_Dials=("Unique Dials", "sum"),
+                Total_Talktime=("Talktime", "sum"),
+                Agents=("Employee Name", "nunique"),
+            ).reset_index()
+            tl["Connected"] = dfc[dfc["System Disposition"].str.lower().str.contains("connect", na=False)].groupby("Reporting TL").size().reindex(tl["Reporting TL"]).fillna(0).astype(int).values
+            tl["Connection Rate%"] = (tl["Connected"] / tl["Total_Calls"] * 100).round(1)
+            tl["Total_Talktime"]   = tl["Total_Talktime"].apply(lambda x: f"{int(x//60)}h {int(x%60)}m")
+            tl = tl.sort_values("Total_Calls", ascending=False).reset_index(drop=True)
+            tl.columns = ["🏅 TL Name", "📞 Total Calls", "🔢 Unique Dials",
+                          "⏱️ Total Talktime", "👥 Agents", "✅ Connected", "📈 Connection Rate%"]
+            st.dataframe(tl, use_container_width=True, hide_index=True,
+                         height=min(50 + len(tl) * 38, 500))
+            
 elif page == "🎯 Leads Utilisation":
     st.markdown("# 🎯 Leads Utilisation")
     st.markdown("---")
