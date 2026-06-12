@@ -1176,9 +1176,12 @@ elif page == "🎯 Leads Utilisation":
         if "PREMIUM" in df_leads.columns:
             df_leads["PREMIUM"] = pd.to_numeric(df_leads["PREMIUM"], errors="coerce").fillna(0)
 
-        # Converted = BOOKING MONTH not blank
+       # Converted = BOOKING MONTH not blank
         df_leads["_converted"] = df_leads["BOOKING MONTH"].apply(
-            lambda x: 1 if str(x).strip() not in ["", "nan", "None"] else 0
+            lambda x: 1 if str(x).strip() not in ["", "nan", "None", "0"] else 0
+        )
+        df_leads["_booking_month"] = df_leads["BOOKING MONTH"].apply(
+            lambda x: str(x).strip() if str(x).strip() not in ["", "nan", "None", "0"] else ""
         )
 
         # ── SIDEBAR FILTERS ──
@@ -1215,10 +1218,8 @@ elif page == "🎯 Leads Utilisation":
                 st.cache_data.clear()
                 st.rerun()
 
-        # ── Apply Filters ──
+       # ── Apply Filters ──
         dfl = df_leads.copy()
-        if "BOOKING MONTH" in dfl.columns and sel_bm:
-            dfl = dfl[dfl["BOOKING MONTH"].isin(sel_bm) | (dfl["_converted"] == 0)]
         if "Visit Date" in dfl.columns and len(d_range_leads) == 2:
             dfl = dfl[(dfl["Visit Date"].dt.date >= d_range_leads[0]) &
                       (dfl["Visit Date"].dt.date <= d_range_leads[1])]
