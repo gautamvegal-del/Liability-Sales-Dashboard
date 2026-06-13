@@ -965,7 +965,7 @@ elif page == "📞 Calling Dashboard":
         else:
             dfc["_talktime_sec"] = 0
         
-        st.write("DEBUG talktime sum:", dfc["_talktime_sec"].sum())
+        
         total_talktime_sec = dfc["_talktime_sec"].sum()
         avg_talktime_sec   = dfc[dfc["_talktime_sec"] > 0]["_talktime_sec"].mean() if len(dfc[dfc["_talktime_sec"] > 0]) > 0 else 0
         total_tt_str = f"{int(total_talktime_sec//3600)}h {int((total_talktime_sec%3600)//60)}m {int(total_talktime_sec%60)}s"
