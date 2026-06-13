@@ -1338,7 +1338,7 @@ elif page == "🎯 Leads Utilisation":
         with r2:
             if "LEAD SOURCE" in dfl.columns:
                 src["Conv%"] = (src["Converted"] / src["Total"] * 100).round(1)
-                src = src.sort_values("Conv%", ascending=True)
+                src = src.sort_values("Conv%", ascending=False)
                 fig_conv = go.Figure(go.Bar(
                     x=src["LEAD SOURCE"], y=src["Conv%"],
                     marker=dict(
@@ -1415,11 +1415,13 @@ elif page == "🎯 Leads Utilisation":
             if "Main Disposition" in dfl.columns:
                 disp = dfl["Main Disposition"].replace("", np.nan).dropna().value_counts().reset_index()
                 disp.columns = ["Disposition", "Count"]
+                disp["Pct"] = (disp["Count"] / disp["Count"].sum() * 100).round(1)
                 fig_disp = go.Figure(go.Bar(
                     x=disp["Count"], y=disp["Disposition"],
                     orientation="h",
                     marker=dict(color=C_PAL[:len(disp)], line=dict(color="rgba(0,0,0,0)")),
-                    text=disp["Count"].astype(str), textposition="outside",
+                    text=[f"{c} ({p}%)" for c, p in zip(disp["Count"], disp["Pct"])],
+                    textposition="outside",
                     textfont=dict(color="#c9d1d9", size=11)
                 ))
                 fig_disp.update_layout(**cbase("Main Disposition Analysis", h=400))
@@ -1428,11 +1430,14 @@ elif page == "🎯 Leads Utilisation":
             if "Sub-Disposition Label" in dfl.columns:
                 sub = dfl["Sub-Disposition Label"].replace("", np.nan).dropna().value_counts().head(10).reset_index()
                 sub.columns = ["Sub Disposition", "Count"]
+                total_sub = dfl["Sub-Disposition Label"].replace("", np.nan).dropna().shape[0]
+                sub["Pct"] = (sub["Count"] / total_sub * 100).round(1)
                 fig_sub = go.Figure(go.Bar(
                     x=sub["Count"], y=sub["Sub Disposition"],
                     orientation="h",
                     marker=dict(color=C_PAL[:len(sub)], line=dict(color="rgba(0,0,0,0)")),
-                    text=sub["Count"].astype(str), textposition="outside",
+                    text=[f"{c} ({p}%)" for c, p in zip(sub["Count"], sub["Pct"])],
+                    textposition="outside",
                     textfont=dict(color="#c9d1d9", size=11)
                 ))
                 fig_sub.update_layout(**cbase("Sub Disposition Label — Top 10", h=400))
