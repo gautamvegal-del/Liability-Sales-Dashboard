@@ -1141,7 +1141,6 @@ elif page == "📞 Calling Dashboard":
             st.dataframe(tl, use_container_width=True, hide_index=True,
                          height=min(50 + len(tl) * 38, 500))
             
-            
 elif page == "🎯 Leads Utilisation":
     @st.cache_data(ttl=300)
     def load_leads_data():
@@ -1165,62 +1164,56 @@ elif page == "🎯 Leads Utilisation":
         st.warning(f"⚠️ Leads data load nahi hua: {err}")
     else:
         # ── Data Prep ──
-        use_cols = ["Product", "Data Source", "Allocated To Name", "Team Leader",
-                    "Association", "Visit Date", "Main Disposition",
-                    "Sub-Disposition Label", "LEAD SOURCE", "BOOKING MONTH", "PREMIUM", "LEAD STATUS"]
+        use_cols = ["Product", "Data Source", "Allocated To Name", "Association",
+                    "Visit Date", "Main Disposition", "Sub-Disposition Label",
+                    "Team Leader", "BOOKING DATE", "BOOKING MONTH", "PREMIUM",
+                    "LEAD STATUS", "LEAD SOURCE"]
         use_cols = [c for c in use_cols if c in df_leads.columns]
         df_leads = df_leads[use_cols].copy()
 
+        # Date & Numeric conversions
         if "Visit Date" in df_leads.columns:
             df_leads["Visit Date"] = pd.to_datetime(df_leads["Visit Date"], errors="coerce")
         if "PREMIUM" in df_leads.columns:
             df_leads["PREMIUM"] = pd.to_numeric(df_leads["PREMIUM"], errors="coerce").fillna(0)
 
-        # Visit Month for filter & trend
+        # Visit Month from Visit Date
         df_leads["_visit_month"] = df_leads["Visit Date"].dt.strftime("%b-%y")
 
         # Converted = LEAD STATUS == "Converted"
-        df_leads["_converted"] = df_leads["LEAD STATUS"].apply(
-            lambda x: 1 if str(x).strip() == "Converted" else 0
-        ) if "LEAD STATUS" in df_leads.columns else 0
+        df_leads["_is_converted"] = df_leads["LEAD STATUS"].apply(
+            lambda x: True if str(x).strip() == "Converted" else False
+        ) if "LEAD STATUS" in df_leads.columns else False
 
-        df_leads["_booking_month"] = df_leads["BOOKING MONTH"].apply(
-            lambda x: str(x).strip() if str(x).strip() not in ["", "nan", "None", "0", "-"] else ""
+        # Premium only for converted leads
+        df_leads["_conv_premium"] = df_leads.apply(
+            lambda r: r["PREMIUM"] if r["_is_converted"] else 0, axis=1
         )
-        # Premium sirf Converted leads ka
-        df_leads["_premium_clean"] = df_leads.apply(
-            lambda r: r["PREMIUM"] if r["_converted"] == 1 else 0, axis=1
-        )
-        use_cols = [c for c in use_cols if c in df_leads.columns]
-        df_leads = df_leads[use_cols].copy()
-
-        if "Visit Date" in df_leads.columns:
-            df_leads["Visit Date"] = pd.to_datetime(df_leads["Visit Date"], errors="coerce")
-        if "PREMIUM" in df_leads.columns:
-            df_leads["PREMIUM"] = pd.to_numeric(df_leads["PREMIUM"], errors="coerce").fillna(0)
-
 
         # ── SIDEBAR FILTERS ──
         with st.sidebar:
             st.markdown("<div class='sec-head'>🔍 Leads Filters</div>", unsafe_allow_html=True)
 
-            if "_visit_month" in df_leads.columns:
-                vm_opts = sorted(df_leads["_visit_month"].dropna().replace("", np.nan).dropna().unique().tolist(), key=str)
-                sel_vm  = st.multiselect("📅 Visit Month", vm_opts, default=vm_opts, key="leads_vm")
-            else:
-                sel_vm = []
+            # Visit Date Range
             if "Visit Date" in df_leads.columns:
-                min_d = df_leads["Visit Date"].min().date()
-                max_d = df_leads["Visit Date"].max().date()
+                min_d = df_leads["Visit Date"].dropna().min().date()
+                max_d = df_leads["Visit Date"].dropna().max().date()
                 d_range_leads = st.date_input("📆 Visit Date Range", value=(min_d, max_d),
                                               min_value=min_d, max_value=max_d, key="leads_date")
+            else:
+                d_range_leads = ()
 
+            # Visit Month
+            vm_opts = sorted(df_leads["_visit_month"].dropna().replace("", np.nan).dropna().unique().tolist(), key=str)
+            sel_vm  = st.multiselect("📅 Visit Month", vm_opts, default=vm_opts, key="leads_vm")
+
+            # Categorical Filters
             leads_filters = {
                 "Allocated To Name":     "👤 RM Name",
                 "Team Leader":           "🏅 Team Leader",
-                "LEAD STATUS":           "✅ Lead Status",
                 "LEAD SOURCE":           "🔗 Lead Source",
                 "Data Source":           "📡 Data Source",
+                "LEAD STATUS":           "✅ Lead Status",
                 "Product":               "📦 Product",
                 "Association":           "🏢 Association",
                 "Main Disposition":      "📋 Main Disposition",
@@ -1229,23 +1222,32 @@ elif page == "🎯 Leads Utilisation":
             leads_sel = {}
             for col, label in leads_filters.items():
                 if col in df_leads.columns:
-                    opts = sorted(df_leads[col].dropna().replace("", np.nan).dropna().unique().tolist(), key=str)
+                    opts = sorted(
+                        df_leads[col].dropna().replace("", np.nan).dropna().unique().tolist(), key=str
+                    )
                     leads_sel[col] = st.multiselect(label, opts, default=opts, key=f"ld_{col}")
 
             if st.button("🔄 Refresh Leads Data", use_container_width=True, key="leads_refresh"):
                 st.cache_data.clear()
                 st.rerun()
 
-       # ── Apply Filters ──
+        # ── Apply Filters ──
         dfl = df_leads.copy()
-        if sel_vm:
-            dfl = dfl[dfl["_visit_month"].isin(sel_vm)]
-        if "Visit Date" in dfl.columns and len(d_range_leads) == 2:
+
+        # Visit Date Range filter
+        if len(d_range_leads) == 2 and "Visit Date" in dfl.columns:
             dfl = dfl[(dfl["Visit Date"].dt.date >= d_range_leads[0]) &
                       (dfl["Visit Date"].dt.date <= d_range_leads[1])]
+
+        # Visit Month filter
+        if sel_vm:
+            dfl = dfl[dfl["_visit_month"].isin(sel_vm)]
+
+        # Categorical filters
         for col, sel in leads_sel.items():
             if sel:
                 dfl = dfl[dfl[col].isin(sel)]
+
         # ── HEADER ──
         h1, h2 = st.columns([5, 1])
         with h1:
@@ -1259,12 +1261,12 @@ elif page == "🎯 Leads Utilisation":
                         unsafe_allow_html=True)
         st.markdown("---")
 
-        # ── KPIs ──
+        # ── KPI CARDS ──
         st.markdown("<div class='sec-head'>📊 Key Performance Indicators</div>", unsafe_allow_html=True)
         total_leads     = len(dfl)
-        converted       = dfl["_converted"].sum()
+        converted       = int(dfl["_is_converted"].sum())
         conversion_rate = round(converted / total_leads * 100, 1) if total_leads > 0 else 0
-        total_premium   = dfl["_premium_clean"].sum() if "_premium_clean" in dfl.columns else 0
+        total_premium   = dfl["_conv_premium"].sum()
         avg_premium     = total_premium / converted if converted > 0 else 0
 
         st.markdown(f"""
@@ -1274,9 +1276,9 @@ elif page == "🎯 Leads Utilisation":
             <div class='kpi-value'>{total_leads:,}</div>
             <div class='kpi-sub'>All leads</div></div>
           <div class='kpi-card c2'><div class='kpi-icon'>✅</div>
-            <div class='kpi-label'>Converted</div>
-            <div class='kpi-value'>{int(converted):,}</div>
-            <div class='kpi-sub'>Booking done</div></div>
+            <div class='kpi-label'>Converted Leads</div>
+            <div class='kpi-value'>{converted:,}</div>
+            <div class='kpi-sub'>Lead Status = Converted</div></div>
           <div class='kpi-card c3'><div class='kpi-icon'>📈</div>
             <div class='kpi-label'>Conversion Rate</div>
             <div class='kpi-value'>{conversion_rate}%</div>
@@ -1288,7 +1290,7 @@ elif page == "🎯 Leads Utilisation":
           <div class='kpi-card c5'><div class='kpi-icon'>📊</div>
             <div class='kpi-label'>Avg Premium/Lead</div>
             <div class='kpi-value'>{fmt(avg_premium)}</div>
-            <div class='kpi-sub'>Per converted lead</div></div>
+            <div class='kpi-sub'>Premium / Converted</div></div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
@@ -1307,16 +1309,17 @@ elif page == "🎯 Leads Utilisation":
                 height=h,
             )
 
-        # ── ROW 1: Source wise Leads & Conversion ──
+        # ── ROW 1: Lead Source Analysis ──
         st.markdown("<div class='sec-head'>🔗 Lead Source Analysis</div>", unsafe_allow_html=True)
         r1, r2 = st.columns(2)
         with r1:
             if "LEAD SOURCE" in dfl.columns:
                 src = dfl.groupby("LEAD SOURCE").agg(
-                    Total=("_converted", "count"),
-                    Converted=("_converted", "sum")
+                    Total=("LEAD SOURCE", "count"),
+                    Converted=("_is_converted", "sum")
                 ).reset_index().sort_values("Total", ascending=False)
-                fig_src = go.Figure(go.Bar(
+                fig_src = go.Figure()
+                fig_src.add_trace(go.Bar(
                     x=src["LEAD SOURCE"], y=src["Total"],
                     name="Total Leads",
                     marker=dict(color="#388bfd", line=dict(color="rgba(0,0,0,0)")),
@@ -1327,11 +1330,13 @@ elif page == "🎯 Leads Utilisation":
                     x=src["LEAD SOURCE"], y=src["Converted"],
                     name="Converted",
                     marker=dict(color="#3fb950", line=dict(color="rgba(0,0,0,0)")),
-                    text=src["Converted"].astype(str), textposition="outside",
+                    text=src["Converted"].astype(int).astype(str), textposition="outside",
                     textfont=dict(color="#3fb950", size=10)
                 ))
-                fig_src.update_layout(**cbase("Lead Source — Total vs Converted", h=350), barmode="group")
+                fig_src.update_layout(**cbase("Lead Source — Total Leads vs Converted", h=380), barmode="group")
+                fig_src.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
                 st.plotly_chart(fig_src, use_container_width=True)
+
         with r2:
             if "LEAD SOURCE" in dfl.columns:
                 src["Conv%"] = (src["Converted"] / src["Total"] * 100).round(1)
@@ -1345,63 +1350,37 @@ elif page == "🎯 Leads Utilisation":
                     text=[f"{v}%" for v in src["Conv%"]], textposition="outside",
                     textfont=dict(color="#c9d1d9", size=10)
                 ))
-                fig_conv.update_layout(**cbase("Lead Source — Conversion Rate %", h=350))
+                fig_conv.update_layout(**cbase("Lead Source — Conversion Rate %", h=380))
                 st.plotly_chart(fig_conv, use_container_width=True)
 
-        # ── ROW 2: Monthly Trend & Product wise ──
-        st.markdown("<div class='sec-head'>📈 Monthly Trend & Product Analysis</div>", unsafe_allow_html=True)
-        r3, r4 = st.columns(2)
-        with r3:
-            dfl["_visit_month"] = pd.to_datetime(dfl["Visit Date"], errors="coerce").dt.strftime("%b-%y")
-            monthly_total = dfl.groupby("_visit_month").agg(
-                Total=("_converted", "count")
-            ).reset_index().rename(columns={"_visit_month": "Month"})
-           monthly_conv = dfl[dfl["_converted"] == 1].groupby("_visit_month").agg(
-                Converted=("_converted", "sum"),
-                Premium=("_premium_clean", "sum")
-            ).reset_index().rename(columns={"_visit_month": "Month"})
-            monthly = monthly_total.merge(monthly_conv, on="Month", how="left").fillna(0)
-            monthly = monthly.sort_values("Month")
-            fig_monthly = go.Figure()
-            fig_monthly.add_trace(go.Scatter(
-                x=monthly["Month"], y=monthly["Total"],
-                name="Total Leads", mode="lines+markers+text",
-                line=dict(color="#388bfd", width=3),
-                marker=dict(size=8, color="#388bfd"),
-                fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
-                text=monthly["Total"].astype(str),
-                textposition="top center", textfont=dict(color="#388bfd", size=10),
-            ))
-            fig_monthly.add_trace(go.Scatter(
-                x=monthly["Month"], y=monthly["Converted"],
-                name="Converted", mode="lines+markers+text",
-                line=dict(color="#3fb950", width=2, dash="dash"),
-                marker=dict(size=7, color="#3fb950"),
-                text=monthly["Converted"].astype(str),
-                textposition="bottom center", textfont=dict(color="#3fb950", size=10),
-            ))
-            fig_monthly.update_layout(**cbase("Monthly Trend — Leads vs Converted", h=350))
-            fig_monthly.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
-            st.plotly_chart(fig_monthly, use_container_width=True)
-        with r4:
-            if "Product" in dfl.columns:
-                prod = dfl.groupby("Product").agg(
-                    Total=("_converted", "count"),
-                    Converted=("_converted", "sum"),
-                    Premium=("PREMIUM", "sum")
-                ).reset_index().sort_values("Total", ascending=False)
-                prod["Conv%"] = (prod["Converted"] / prod["Total"] * 100).round(1)
-                fig_prod = go.Figure(go.Pie(
-                    labels=prod["Product"], values=prod["Total"],
-                    hole=0.55,
-                    marker=dict(colors=C_PAL[:len(prod)], line=dict(color="#060d1a", width=3)),
-                    texttemplate="%{label}<br>%{percent}<br>Conv: %{customdata}%",
-                    customdata=prod["Conv%"],
-                    textfont=dict(color="white", size=10),
-                    pull=[0.04] + [0]*(len(prod)-1)
-                ))
-                fig_prod.update_layout(**cbase("Product wise Lead Distribution", h=350), showlegend=True)
-                st.plotly_chart(fig_prod, use_container_width=True)
+        # ── ROW 2: Monthly Trend ──
+        st.markdown("<div class='sec-head'>📈 Monthly Trend</div>", unsafe_allow_html=True)
+        monthly = dfl.groupby("_visit_month").agg(
+            Total=("_visit_month", "count"),
+            Converted=("_is_converted", "sum")
+        ).reset_index().rename(columns={"_visit_month": "Month"})
+        monthly = monthly.sort_values("Month")
+        fig_monthly = go.Figure()
+        fig_monthly.add_trace(go.Scatter(
+            x=monthly["Month"], y=monthly["Total"],
+            name="Total Leads", mode="lines+markers+text",
+            line=dict(color="#388bfd", width=3),
+            marker=dict(size=8, color="#388bfd", line=dict(color="#060d1a", width=2)),
+            fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
+            text=monthly["Total"].astype(str),
+            textposition="top center", textfont=dict(color="#388bfd", size=10),
+        ))
+        fig_monthly.add_trace(go.Scatter(
+            x=monthly["Month"], y=monthly["Converted"],
+            name="Converted", mode="lines+markers+text",
+            line=dict(color="#3fb950", width=2, dash="dash"),
+            marker=dict(size=7, color="#3fb950"),
+            text=monthly["Converted"].astype(int).astype(str),
+            textposition="bottom center", textfont=dict(color="#3fb950", size=10),
+        ))
+        fig_monthly.update_layout(**cbase("Monthly Trend — Total Leads vs Converted", h=350))
+        fig_monthly.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
+        st.plotly_chart(fig_monthly, use_container_width=True)
 
         # ── ROW 3: Disposition ──
         st.markdown("<div class='sec-head'>📋 Disposition Analysis</div>", unsafe_allow_html=True)
@@ -1417,7 +1396,7 @@ elif page == "🎯 Leads Utilisation":
                     text=disp["Count"].astype(str), textposition="outside",
                     textfont=dict(color="#c9d1d9", size=11)
                 ))
-                fig_disp.update_layout(**cbase("Main Disposition Breakdown", h=380))
+                fig_disp.update_layout(**cbase("Main Disposition Analysis", h=400))
                 st.plotly_chart(fig_disp, use_container_width=True)
         with r6:
             if "Sub-Disposition Label" in dfl.columns:
@@ -1430,54 +1409,54 @@ elif page == "🎯 Leads Utilisation":
                     text=sub["Count"].astype(str), textposition="outside",
                     textfont=dict(color="#c9d1d9", size=11)
                 ))
-                fig_sub.update_layout(**cbase("Sub Disposition — Top 10", h=380))
+                fig_sub.update_layout(**cbase("Sub Disposition Label — Top 10", h=400))
                 st.plotly_chart(fig_sub, use_container_width=True)
 
         # ── RM WISE DETAILED TABLE ──
         st.markdown("<div class='sec-head'>👤 RM wise Detailed Performance</div>", unsafe_allow_html=True)
         if "Allocated To Name" in dfl.columns and "LEAD SOURCE" in dfl.columns:
+            # Source level rows
             rm_src = dfl.groupby(["Allocated To Name", "LEAD SOURCE"]).agg(
-                Total_Leads=("_converted", "count"),
-                Converted=("_converted", "sum"),
-                Premium=("_premium_clean", "sum")
+                Total_Leads=("LEAD SOURCE", "count"),
+                Converted=("_is_converted", "sum"),
+                Premium=("_conv_premium", "sum")
             ).reset_index()
             rm_src["Conv%"] = (rm_src["Converted"] / rm_src["Total_Leads"] * 100).round(1)
+            rm_src["_is_subtotal"] = False
 
-            # RM subtotal
+            # RM subtotal rows
             rm_sub = dfl.groupby("Allocated To Name").agg(
-                Total_Leads=("_converted", "count"),
-                Converted=("_converted", "sum"),
-                Premium=("_premium_clean", "sum")
+                Total_Leads=("Allocated To Name", "count"),
+                Converted=("_is_converted", "sum"),
+                Premium=("_conv_premium", "sum")
             ).reset_index()
-            rm_sub["Conv%"]      = (rm_sub["Converted"] / rm_sub["Total_Leads"] * 100).round(1)
+            rm_sub["Conv%"]       = (rm_sub["Converted"] / rm_sub["Total_Leads"] * 100).round(1)
             rm_sub["LEAD SOURCE"] = "── RM Total"
-            rm_sub["_is_total"]  = True
-            rm_src["_is_total"]  = False
+            rm_sub["_is_subtotal"] = True
 
+            # Combine source rows + subtotal per RM
             final_rows = []
             for rm in rm_src["Allocated To Name"].unique():
-                src_rows = rm_src[rm_src["Allocated To Name"] == rm]
-                tot_row  = rm_sub[rm_sub["Allocated To Name"] == rm]
-                final_rows.append(src_rows)
-                final_rows.append(tot_row)
-
+                final_rows.append(rm_src[rm_src["Allocated To Name"] == rm])
+                final_rows.append(rm_sub[rm_sub["Allocated To Name"] == rm])
             rm_table = pd.concat(final_rows, ignore_index=True)
 
             # Grand Total
             grand = pd.DataFrame([{
                 "Allocated To Name": "GRAND TOTAL",
-                "LEAD SOURCE": "",
-                "Total_Leads": dfl["_converted"].count(),
-                "Converted":   dfl["_converted"].sum(),
-                "Premium":     dfl["_premium_clean"].sum(),
-                "Conv%":       round(dfl["_converted"].sum() / len(dfl) * 100, 1) if len(dfl) > 0 else 0,
-                "_is_total":   True
+                "LEAD SOURCE":       "",
+                "Total_Leads":       total_leads,
+                "Converted":         converted,
+                "Premium":           total_premium,
+                "Conv%":             conversion_rate,
+                "_is_subtotal":      True
             }])
             rm_table = pd.concat([rm_table, grand], ignore_index=True)
+            rm_table = rm_table.drop("_is_subtotal", axis=1)
 
             rm_table["Premium"] = rm_table["Premium"].apply(fmt)
             rm_table["Conv%"]   = rm_table["Conv%"].apply(lambda x: f"{x:.1f}%")
-            rm_table = rm_table.drop("_is_total", axis=1)
+            rm_table["Converted"] = rm_table["Converted"].apply(lambda x: int(x))
             rm_table.columns = ["👤 RM Name", "🔗 Lead Source", "📋 Total Leads",
                                  "✅ Converted", "💰 Premium", "📈 Conv%"]
             st.dataframe(rm_table, use_container_width=True, hide_index=True,
@@ -1487,25 +1466,28 @@ elif page == "🎯 Leads Utilisation":
         st.markdown("<div class='sec-head'>🔗 Source wise Summary</div>", unsafe_allow_html=True)
         if "LEAD SOURCE" in dfl.columns:
             src_sum = dfl.groupby("LEAD SOURCE").agg(
-                Total_Leads=("_converted", "count"),
-                Converted=("_converted", "sum"),
-                Premium=("_premium_clean", "sum")
+                Total_Leads=("LEAD SOURCE", "count"),
+                Converted=("_is_converted", "sum"),
+                Premium=("_conv_premium", "sum")
             ).reset_index().sort_values("Total_Leads", ascending=False)
-            src_sum["Conv%"]   = (src_sum["Converted"] / src_sum["Total_Leads"] * 100).round(1)
-            total_src = pd.DataFrame([{
+            src_sum["Conv%"] = (src_sum["Converted"] / src_sum["Total_Leads"] * 100).round(1)
+
+            # Grand Total row
+            src_total = pd.DataFrame([{
                 "LEAD SOURCE":  "TOTAL",
-                "Total_Leads":  src_sum["Total_Leads"].sum(),
-                "Converted":    src_sum["Converted"].sum(),
-                "Premium":      src_sum["Premium"].sum(),
-                "Conv%":        round(src_sum["Converted"].sum() / src_sum["Total_Leads"].sum() * 100, 1)
+                "Total_Leads":  total_leads,
+                "Converted":    converted,
+                "Premium":      total_premium,
+                "Conv%":        conversion_rate,
             }])
-            src_sum = pd.concat([src_sum, total_src], ignore_index=True)
-            src_sum["Premium"] = src_sum["Premium"].apply(fmt)
-            src_sum["Conv%"]   = src_sum["Conv%"].apply(lambda x: f"{x:.1f}%")
-            src_sum.columns    = ["🔗 Lead Source", "📋 Total Leads", "✅ Converted", "💰 Premium", "📈 Conv%"]
+            src_sum = pd.concat([src_sum, src_total], ignore_index=True)
+            src_sum["Premium"]  = src_sum["Premium"].apply(fmt)
+            src_sum["Conv%"]    = src_sum["Conv%"].apply(lambda x: f"{x:.1f}%")
+            src_sum["Converted"] = src_sum["Converted"].apply(lambda x: int(x))
+            src_sum.columns = ["🔗 Lead Source", "📋 Total Leads", "✅ Converted", "💰 Premium", "📈 Conv%"]
             st.dataframe(src_sum, use_container_width=True, hide_index=True,
                          height=min(50 + len(src_sum) * 38, 500))
-
+            
 # ─────────────────────────────────────────────
 #  FOOTER
 # ─────────────────────────────────────────────
