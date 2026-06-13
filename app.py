@@ -1333,8 +1333,7 @@ elif page == "🎯 Leads Utilisation":
         st.markdown("<div class='sec-head'>📈 Monthly Trend & Product Analysis</div>", unsafe_allow_html=True)
         r3, r4 = st.columns(2)
         with r3:
-            if "BOOKING MONTH" in dfl.columns:
-                dfl["_visit_month"] = pd.to_datetime(dfl["Visit Date"], errors="coerce").dt.strftime("%b-%y")
+            dfl["_visit_month"] = pd.to_datetime(dfl["Visit Date"], errors="coerce").dt.strftime("%b-%y")
             monthly_total = dfl.groupby("_visit_month").agg(
                 Total=("_converted", "count")
             ).reset_index().rename(columns={"_visit_month": "Month"})
@@ -1345,27 +1344,27 @@ elif page == "🎯 Leads Utilisation":
             monthly_conv = monthly_conv[monthly_conv["Month"].str.strip() != ""]
             monthly = monthly_total.merge(monthly_conv, on="Month", how="left").fillna(0)
             monthly = monthly.sort_values("Month")
-                fig_monthly = go.Figure()
-                fig_monthly.add_trace(go.Scatter(
-                    x=monthly["BOOKING MONTH"], y=monthly["Total"],
-                    name="Total Leads", mode="lines+markers+text",
-                    line=dict(color="#388bfd", width=3),
-                    marker=dict(size=8, color="#388bfd"),
-                    fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
-                    text=monthly["Total"].astype(str),
-                    textposition="top center", textfont=dict(color="#388bfd", size=10),
-                ))
-                fig_monthly.add_trace(go.Scatter(
-                    x=monthly["BOOKING MONTH"], y=monthly["Converted"],
-                    name="Converted", mode="lines+markers+text",
-                    line=dict(color="#3fb950", width=2, dash="dash"),
-                    marker=dict(size=7, color="#3fb950"),
-                    text=monthly["Converted"].astype(str),
-                    textposition="bottom center", textfont=dict(color="#3fb950", size=10),
-                ))
-                fig_monthly.update_layout(**cbase("Monthly Trend — Leads vs Converted", h=350))
-                fig_monthly.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
-                st.plotly_chart(fig_monthly, use_container_width=True)
+            fig_monthly = go.Figure()
+            fig_monthly.add_trace(go.Scatter(
+                x=monthly["Month"], y=monthly["Total"],
+                name="Total Leads", mode="lines+markers+text",
+                line=dict(color="#388bfd", width=3),
+                marker=dict(size=8, color="#388bfd"),
+                fill="tozeroy", fillcolor="rgba(56,139,253,0.07)",
+                text=monthly["Total"].astype(str),
+                textposition="top center", textfont=dict(color="#388bfd", size=10),
+            ))
+            fig_monthly.add_trace(go.Scatter(
+                x=monthly["Month"], y=monthly["Converted"],
+                name="Converted", mode="lines+markers+text",
+                line=dict(color="#3fb950", width=2, dash="dash"),
+                marker=dict(size=7, color="#3fb950"),
+                text=monthly["Converted"].astype(str),
+                textposition="bottom center", textfont=dict(color="#3fb950", size=10),
+            ))
+            fig_monthly.update_layout(**cbase("Monthly Trend — Leads vs Converted", h=350))
+            fig_monthly.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
+            st.plotly_chart(fig_monthly, use_container_width=True)
         with r4:
             if "Product" in dfl.columns:
                 prod = dfl.groupby("Product").agg(
