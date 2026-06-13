@@ -1338,6 +1338,7 @@ elif page == "🎯 Leads Utilisation":
         with r2:
             if "LEAD SOURCE" in dfl.columns:
                 src["Conv%"] = (src["Converted"] / src["Total"] * 100).round(1)
+                src = src.sort_values("Conv%", ascending=True)
                 fig_conv = go.Figure(go.Bar(
                     x=src["LEAD SOURCE"], y=src["Conv%"],
                     marker=dict(
@@ -1380,6 +1381,33 @@ elif page == "🎯 Leads Utilisation":
         fig_monthly.update_layout(legend=dict(orientation="h", y=-0.2, font=dict(color=TXT, size=10), bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_monthly, use_container_width=True)
 
+        # ── TOP 10 RMs BY CONVERSION% ──
+        st.markdown("<div class='sec-head'>🏆 Top 10 RMs by Conversion Rate</div>", unsafe_allow_html=True)
+        if "Allocated To Name" in dfl.columns:
+            top_rm = dfl.groupby("Allocated To Name").agg(
+                Total=("Allocated To Name", "count"),
+                Converted=("_is_converted", "sum"),
+                Premium=("_conv_premium", "sum")
+            ).reset_index()
+            top_rm["Conv%"] = (top_rm["Converted"] / top_rm["Total"] * 100).round(1)
+            top_rm = top_rm[top_rm["Total"] >= 10]  # min 10 leads wale RM
+            top_rm = top_rm.nlargest(10, "Conv%").sort_values("Conv%", ascending=True)
+            fig_top_rm = go.Figure(go.Bar(
+                x=top_rm["Conv%"],
+                y=top_rm["Allocated To Name"],
+                orientation="h",
+                marker=dict(
+                    color=top_rm["Conv%"],
+                    colorscale=[[0,"#d29922"],[0.5,"#388bfd"],[1,"#3fb950"]],
+                    showscale=False,
+                    line=dict(color="rgba(0,0,0,0)")
+                ),
+                text=[f"{v}% ({int(c)}/{int(t)})" for v, c, t in zip(top_rm["Conv%"], top_rm["Converted"], top_rm["Total"])],
+                textposition="outside",
+                textfont=dict(color="#c9d1d9", size=11)
+            ))
+            fig_top_rm.update_layout(**cbase("Top 10 RMs by Conversion Rate% (min 10 leads)", h=420))
+            st.plotly_chart(fig_top_rm, use_container_width=True)
         # ── ROW 3: Disposition ──
         st.markdown("<div class='sec-head'>📋 Disposition Analysis</div>", unsafe_allow_html=True)
         r5, r6 = st.columns(2)
