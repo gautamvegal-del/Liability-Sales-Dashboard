@@ -1142,7 +1142,7 @@ elif page == "📞 Calling Dashboard":
                          height=min(50 + len(tl) * 38, 500))
             
 elif page == "🎯 Leads Utilisation":
-    @st.cache_data(ttl=300)
+    @st.cache_data(ttl=1)
     def load_leads_data():
         try:
             scopes = [
