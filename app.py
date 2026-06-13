@@ -1334,13 +1334,17 @@ elif page == "🎯 Leads Utilisation":
         r3, r4 = st.columns(2)
         with r3:
             if "BOOKING MONTH" in dfl.columns:
-                monthly = dfl.groupby("BOOKING MONTH").agg(
-                    Total=("_converted", "count"),
-                    Converted=("_converted", "sum"),
-                    Premium=("PREMIUM", "sum")
-                ).reset_index()
-                monthly = monthly[monthly["BOOKING MONTH"].str.strip() != ""]
-                monthly = monthly.sort_values("BOOKING MONTH")
+                dfl["_visit_month"] = pd.to_datetime(dfl["Visit Date"], errors="coerce").dt.strftime("%b-%y")
+            monthly_total = dfl.groupby("_visit_month").agg(
+                Total=("_converted", "count")
+            ).reset_index().rename(columns={"_visit_month": "Month"})
+            monthly_conv = dfl[dfl["_converted"] == 1].groupby("_booking_month").agg(
+                Converted=("_converted", "sum"),
+                Premium=("PREMIUM", "sum")
+            ).reset_index().rename(columns={"_booking_month": "Month"})
+            monthly_conv = monthly_conv[monthly_conv["Month"].str.strip() != ""]
+            monthly = monthly_total.merge(monthly_conv, on="Month", how="left").fillna(0)
+            monthly = monthly.sort_values("Month")
                 fig_monthly = go.Figure()
                 fig_monthly.add_trace(go.Scatter(
                     x=monthly["BOOKING MONTH"], y=monthly["Total"],
