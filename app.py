@@ -1176,6 +1176,28 @@ elif page == "🎯 Leads Utilisation":
         if "PREMIUM" in df_leads.columns:
             df_leads["PREMIUM"] = pd.to_numeric(df_leads["PREMIUM"], errors="coerce").fillna(0)
 
+        # Visit Month for filter & trend
+        df_leads["_visit_month"] = df_leads["Visit Date"].dt.strftime("%b-%y")
+
+        # Converted = BOOKING MONTH not blank and not "-"
+        df_leads["_converted"] = df_leads["BOOKING MONTH"].apply(
+            lambda x: 1 if str(x).strip() not in ["", "nan", "None", "0", "-"] else 0
+        )
+        df_leads["_booking_month"] = df_leads["BOOKING MONTH"].apply(
+            lambda x: str(x).strip() if str(x).strip() not in ["", "nan", "None", "0", "-"] else ""
+        )
+        # Premium sirf valid converted leads ka
+        df_leads["_premium_clean"] = df_leads.apply(
+            lambda r: r["PREMIUM"] if r["_converted"] == 1 else 0, axis=1
+        )
+        use_cols = [c for c in use_cols if c in df_leads.columns]
+        df_leads = df_leads[use_cols].copy()
+
+        if "Visit Date" in df_leads.columns:
+            df_leads["Visit Date"] = pd.to_datetime(df_leads["Visit Date"], errors="coerce")
+        if "PREMIUM" in df_leads.columns:
+            df_leads["PREMIUM"] = pd.to_numeric(df_leads["PREMIUM"], errors="coerce").fillna(0)
+
        # Converted = BOOKING MONTH not blank
         df_leads["_converted"] = df_leads["BOOKING MONTH"].apply(
             lambda x: 1 if str(x).strip() not in ["", "nan", "None", "0"] else 0
@@ -1188,10 +1210,11 @@ elif page == "🎯 Leads Utilisation":
         with st.sidebar:
             st.markdown("<div class='sec-head'>🔍 Leads Filters</div>", unsafe_allow_html=True)
 
-            if "BOOKING MONTH" in df_leads.columns:
-                bm_opts = sorted(df_leads["BOOKING MONTH"].dropna().replace("", np.nan).dropna().unique().tolist(), key=str)
-                sel_bm  = st.multiselect("📅 Booking Month", bm_opts, default=bm_opts, key="leads_bm")
-
+            if "_visit_month" in df_leads.columns:
+                vm_opts = sorted(df_leads["_visit_month"].dropna().replace("", np.nan).dropna().unique().tolist(), key=str)
+                sel_vm  = st.multiselect("📅 Visit Month", vm_opts, default=vm_opts, key="leads_vm")
+            else:
+                sel_vm = []
             if "Visit Date" in df_leads.columns:
                 min_d = df_leads["Visit Date"].min().date()
                 max_d = df_leads["Visit Date"].max().date()
@@ -1220,13 +1243,14 @@ elif page == "🎯 Leads Utilisation":
 
        # ── Apply Filters ──
         dfl = df_leads.copy()
+        if sel_vm:
+            dfl = dfl[dfl["_visit_month"].isin(sel_vm)]
         if "Visit Date" in dfl.columns and len(d_range_leads) == 2:
             dfl = dfl[(dfl["Visit Date"].dt.date >= d_range_leads[0]) &
                       (dfl["Visit Date"].dt.date <= d_range_leads[1])]
         for col, sel in leads_sel.items():
             if sel:
                 dfl = dfl[dfl[col].isin(sel)]
-
         # ── HEADER ──
         h1, h2 = st.columns([5, 1])
         with h1:
@@ -1245,7 +1269,7 @@ elif page == "🎯 Leads Utilisation":
         total_leads     = len(dfl)
         converted       = dfl["_converted"].sum()
         conversion_rate = round(converted / total_leads * 100, 1) if total_leads > 0 else 0
-        total_premium   = dfl[dfl["_converted"] == 1]["PREMIUM"].sum() if "PREMIUM" in dfl.columns else 0
+        total_premium   = dfl["_premium_clean"].sum() if "_premium_clean" in dfl.columns else 0
         avg_premium     = total_premium / converted if converted > 0 else 0
 
         st.markdown(f"""
@@ -1451,7 +1475,7 @@ elif page == "🎯 Leads Utilisation":
                 "LEAD SOURCE": "",
                 "Total_Leads": dfl["_converted"].count(),
                 "Converted":   dfl["_converted"].sum(),
-                "Premium":     dfl[dfl["_converted"]==1]["PREMIUM"].sum(),
+                "Premium":     dfl["_premium_clean"].sum(),
                 "Conv%":       round(dfl["_converted"].sum() / len(dfl) * 100, 1) if len(dfl) > 0 else 0,
                 "_is_total":   True
             }])
