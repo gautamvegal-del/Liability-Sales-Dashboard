@@ -1167,7 +1167,7 @@ elif page == "🎯 Leads Utilisation":
         # ── Data Prep ──
         use_cols = ["Product", "Data Source", "Allocated To Name", "Team Leader",
                     "Association", "Visit Date", "Main Disposition",
-                    "Sub-Disposition Label", "LEAD SOURCE", "BOOKING MONTH", "PREMIUM"]
+                    "Sub-Disposition Label", "LEAD SOURCE", "BOOKING MONTH", "PREMIUM", "LEAD STATUS"]
         use_cols = [c for c in use_cols if c in df_leads.columns]
         df_leads = df_leads[use_cols].copy()
 
@@ -1179,14 +1179,15 @@ elif page == "🎯 Leads Utilisation":
         # Visit Month for filter & trend
         df_leads["_visit_month"] = df_leads["Visit Date"].dt.strftime("%b-%y")
 
-        # Converted = BOOKING MONTH not blank and not "-"
-        df_leads["_converted"] = df_leads["BOOKING MONTH"].apply(
-            lambda x: 1 if str(x).strip() not in ["", "nan", "None", "0", "-"] else 0
-        )
+        # Converted = LEAD STATUS == "Converted"
+        df_leads["_converted"] = df_leads["LEAD STATUS"].apply(
+            lambda x: 1 if str(x).strip() == "Converted" else 0
+        ) if "LEAD STATUS" in df_leads.columns else 0
+
         df_leads["_booking_month"] = df_leads["BOOKING MONTH"].apply(
             lambda x: str(x).strip() if str(x).strip() not in ["", "nan", "None", "0", "-"] else ""
         )
-        # Premium sirf valid converted leads ka
+        # Premium sirf Converted leads ka
         df_leads["_premium_clean"] = df_leads.apply(
             lambda r: r["PREMIUM"] if r["_converted"] == 1 else 0, axis=1
         )
@@ -1222,13 +1223,14 @@ elif page == "🎯 Leads Utilisation":
                                               min_value=min_d, max_value=max_d, key="leads_date")
 
             leads_filters = {
-                "Allocated To Name": "👤 RM Name",
-                "Team Leader":       "🏅 Team Leader",
-                "LEAD SOURCE":       "🔗 Lead Source",
-                "Data Source":       "📡 Data Source",
-                "Product":           "📦 Product",
-                "Association":       "🏢 Association",
-                "Main Disposition":  "📋 Main Disposition",
+                "Allocated To Name":     "👤 RM Name",
+                "Team Leader":           "🏅 Team Leader",
+                "LEAD STATUS":           "✅ Lead Status",
+                "LEAD SOURCE":           "🔗 Lead Source",
+                "Data Source":           "📡 Data Source",
+                "Product":               "📦 Product",
+                "Association":           "🏢 Association",
+                "Main Disposition":      "📋 Main Disposition",
                 "Sub-Disposition Label": "🏷️ Sub Disposition",
             }
             leads_sel = {}
