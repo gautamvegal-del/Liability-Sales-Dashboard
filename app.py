@@ -1166,8 +1166,7 @@ elif page == "🎯 Leads Utilisation":
         # ── Data Prep ──
         use_cols = ["Product", "Data Source", "Allocated To Name", "Association",
                     "Visit Date", "Main Disposition", "Sub-Disposition Label",
-                    "Team Leader", "BOOKING DATE", "BOOKING MONTH", "PREMIUM",
-                    "LEAD STATUS", "LEAD SOURCE"]
+                    "Team Leader", "PREMIUM", "LEAD STATUS", "LEAD SOURCE"]
         use_cols = [c for c in use_cols if c in df_leads.columns]
         df_leads = df_leads[use_cols].copy()
 
@@ -1213,7 +1212,6 @@ elif page == "🎯 Leads Utilisation":
                 "Team Leader":           "🏅 Team Leader",
                 "LEAD SOURCE":           "🔗 Lead Source",
                 "Data Source":           "📡 Data Source",
-                "LEAD STATUS":           "✅ Lead Status",
                 "Product":               "📦 Product",
                 "Association":           "🏢 Association",
                 "Main Disposition":      "📋 Main Disposition",
