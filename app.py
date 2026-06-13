@@ -1199,13 +1199,6 @@ elif page == "🎯 Leads Utilisation":
         if "PREMIUM" in df_leads.columns:
             df_leads["PREMIUM"] = pd.to_numeric(df_leads["PREMIUM"], errors="coerce").fillna(0)
 
-       # Converted = BOOKING MONTH not blank
-        df_leads["_converted"] = df_leads["BOOKING MONTH"].apply(
-            lambda x: 1 if str(x).strip() not in ["", "nan", "None", "0"] else 0
-        )
-        df_leads["_booking_month"] = df_leads["BOOKING MONTH"].apply(
-            lambda x: str(x).strip() if str(x).strip() not in ["", "nan", "None", "0"] else ""
-        )
 
         # ── SIDEBAR FILTERS ──
         with st.sidebar:
@@ -1363,11 +1356,10 @@ elif page == "🎯 Leads Utilisation":
             monthly_total = dfl.groupby("_visit_month").agg(
                 Total=("_converted", "count")
             ).reset_index().rename(columns={"_visit_month": "Month"})
-            monthly_conv = dfl[dfl["_converted"] == 1].groupby("_booking_month").agg(
+           monthly_conv = dfl[dfl["_converted"] == 1].groupby("_visit_month").agg(
                 Converted=("_converted", "sum"),
-                Premium=("PREMIUM", "sum")
-            ).reset_index().rename(columns={"_booking_month": "Month"})
-            monthly_conv = monthly_conv[monthly_conv["Month"].str.strip() != ""]
+                Premium=("_premium_clean", "sum")
+            ).reset_index().rename(columns={"_visit_month": "Month"})
             monthly = monthly_total.merge(monthly_conv, on="Month", how="left").fillna(0)
             monthly = monthly.sort_values("Month")
             fig_monthly = go.Figure()
@@ -1447,7 +1439,7 @@ elif page == "🎯 Leads Utilisation":
             rm_src = dfl.groupby(["Allocated To Name", "LEAD SOURCE"]).agg(
                 Total_Leads=("_converted", "count"),
                 Converted=("_converted", "sum"),
-                Premium=("PREMIUM", "sum")
+                Premium=("_premium_clean", "sum")
             ).reset_index()
             rm_src["Conv%"] = (rm_src["Converted"] / rm_src["Total_Leads"] * 100).round(1)
 
@@ -1455,7 +1447,7 @@ elif page == "🎯 Leads Utilisation":
             rm_sub = dfl.groupby("Allocated To Name").agg(
                 Total_Leads=("_converted", "count"),
                 Converted=("_converted", "sum"),
-                Premium=("PREMIUM", "sum")
+                Premium=("_premium_clean", "sum")
             ).reset_index()
             rm_sub["Conv%"]      = (rm_sub["Converted"] / rm_sub["Total_Leads"] * 100).round(1)
             rm_sub["LEAD SOURCE"] = "── RM Total"
@@ -1497,7 +1489,7 @@ elif page == "🎯 Leads Utilisation":
             src_sum = dfl.groupby("LEAD SOURCE").agg(
                 Total_Leads=("_converted", "count"),
                 Converted=("_converted", "sum"),
-                Premium=("PREMIUM", "sum")
+                Premium=("_premium_clean", "sum")
             ).reset_index().sort_values("Total_Leads", ascending=False)
             src_sum["Conv%"]   = (src_sum["Converted"] / src_sum["Total_Leads"] * 100).round(1)
             total_src = pd.DataFrame([{
