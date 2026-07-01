@@ -507,7 +507,6 @@ def show_client_page():
         
         # Group by Sum Assured ranges
         sa_table = dfc_sa.groupby("SA_Range").agg(
-            Total_SA=("Total Sum Assured", "sum"),
             Premium=("Total Premium (excl. GST)", "sum"),
             NOP=("Client Name", "count"),
         ).reset_index()
@@ -515,12 +514,11 @@ def show_client_page():
         sa_table = sa_table.dropna(subset=["SA_Range"])
         sa_table["Premium_Contribution%"] = (sa_table["Premium"] / sa_table["Premium"].sum() * 100).round(1)
         sa_table["NOP_Contribution%"] = (sa_table["NOP"] / sa_table["NOP"].sum() * 100).round(1)
-        sa_table = sa_table.sort_values("Total_SA", ascending=False).reset_index(drop=True)
+        sa_table = sa_table.sort_values("Premium", ascending=False).reset_index(drop=True)
         
         # Add total row
         total_row = pd.DataFrame([{
             "SA_Range": "TOTAL",
-            "Total_SA": sa_table["Total_SA"].sum(),
             "Premium": sa_table["Premium"].sum(),
             "NOP": sa_table["NOP"].sum(),
             "Premium_Contribution%": 100.0,
@@ -530,7 +528,6 @@ def show_client_page():
         
         # Format for display
         sa_display = sa_table.copy()
-        sa_display["Total_SA"] = sa_display["Total_SA"].apply(fmt)
         sa_display["Premium"] = sa_display["Premium"].apply(fmt)
         sa_display["Premium_Contribution%"] = sa_display["Premium_Contribution%"].apply(lambda x: f"{x:.1f}%")
         sa_display["NOP_Contribution%"] = sa_display["NOP_Contribution%"].apply(lambda x: f"{x:.1f}%")
@@ -539,7 +536,6 @@ def show_client_page():
                      height=min(50 + len(sa_display) * 38, 500),
                      column_config={
                          "SA_Range": st.column_config.TextColumn("Sum Assured Range"),
-                         "Total_SA": st.column_config.TextColumn("💰 Total Sum Assured"),
                          "Premium": st.column_config.TextColumn("💵 Total Premium (excl. GST)"),
                          "NOP": st.column_config.NumberColumn("📋 NOP"),
                          "Premium_Contribution%": st.column_config.TextColumn("% Premium Contribution"),
