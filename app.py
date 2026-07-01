@@ -491,6 +491,63 @@ def show_client_page():
     analysis_table(dfc, "Specialization",      "🎯 Specialization wise Analysis",  "spec")
     analysis_table(dfc, "Latest Visit Source", "🔗 Lead Source wise Analysis",     "lead")
 
+    # ── SUM ASSURED WISE ANALYSIS ──
+    st.markdown("<div class='sec-head'>🛡️ Sum Assured wise Analysis</div>", unsafe_allow_html=True)
+    if "Total Sum Assured" in dfc.columns:
+        # Create Sum Assured bins
+        min_sa = dfc["Total Sum Assured"].min()
+        max_sa = dfc["Total Sum Assured"].max()
+        
+        # Define bins for Sum Assured ranges
+        bins = [0, 25_00_000, 50_00_000, 100_00_000, 200_00_000, float('inf')]
+        labels = ["< 25L", "25L - 50L", "50L - 100L", "100L - 200L", "> 200L"]
+        
+        dfc_sa = dfc.copy()
+        dfc_sa["SA_Range"] = pd.cut(dfc_sa["Total Sum Assured"], bins=bins, labels=labels, right=False)
+        
+        # Group by Sum Assured ranges
+        sa_table = dfc_sa.groupby("SA_Range").agg(
+            Total_SA=("Total Sum Assured", "sum"),
+            Premium=("Total Premium (excl. GST)", "sum"),
+            NOP=("Client Name", "count"),
+        ).reset_index()
+        
+        sa_table = sa_table.dropna(subset=["SA_Range"])
+        sa_table["Premium_Contribution%"] = (sa_table["Premium"] / sa_table["Premium"].sum() * 100).round(1)
+        sa_table["NOP_Contribution%"] = (sa_table["NOP"] / sa_table["NOP"].sum() * 100).round(1)
+        sa_table = sa_table.sort_values("Total_SA", ascending=False).reset_index(drop=True)
+        
+        # Add total row
+        total_row = pd.DataFrame([{
+            "SA_Range": "TOTAL",
+            "Total_SA": sa_table["Total_SA"].sum(),
+            "Premium": sa_table["Premium"].sum(),
+            "NOP": sa_table["NOP"].sum(),
+            "Premium_Contribution%": 100.0,
+            "NOP_Contribution%": 100.0,
+        }])
+        sa_table = pd.concat([sa_table, total_row], ignore_index=True)
+        
+        # Format for display
+        sa_display = sa_table.copy()
+        sa_display["Total_SA"] = sa_display["Total_SA"].apply(fmt)
+        sa_display["Premium"] = sa_display["Premium"].apply(fmt)
+        sa_display["Premium_Contribution%"] = sa_display["Premium_Contribution%"].apply(lambda x: f"{x:.1f}%")
+        sa_display["NOP_Contribution%"] = sa_display["NOP_Contribution%"].apply(lambda x: f"{x:.1f}%")
+        
+        st.dataframe(sa_display, use_container_width=True, hide_index=True,
+                     height=min(50 + len(sa_display) * 38, 500),
+                     column_config={
+                         "SA_Range": st.column_config.TextColumn("Sum Assured Range"),
+                         "Total_SA": st.column_config.TextColumn("💰 Total Sum Assured"),
+                         "Premium": st.column_config.TextColumn("💵 Total Premium (excl. GST)"),
+                         "NOP": st.column_config.NumberColumn("📋 NOP"),
+                         "Premium_Contribution%": st.column_config.TextColumn("% Premium Contribution"),
+                         "NOP_Contribution%": st.column_config.TextColumn("% NOP Contribution"),
+                     })
+    else:
+        st.info("💡 'Total Sum Assured' column data mein nahi mila.")
+
 
 
 # ─────────────────────────────────────────────
