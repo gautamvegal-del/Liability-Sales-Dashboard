@@ -277,12 +277,18 @@ def show_client_page():
         client_sel = {}
         for col, label in client_filters.items():
             if col in df_client.columns:
-                # Clean empty strings and detect NULLs
-                col_clean = df_client[col].astype(str).str.strip().replace("", np.nan)
-                opts = sorted(col_clean.dropna().unique().tolist(), key=str)
-                # Add "[No Value]" if NULL or empty values exist
-                if col_clean.isna().any():
-                    opts = opts + ["[No Value]"]
+                # Check if column is object/string type
+                if df_client[col].dtype == 'object':
+                    # Clean empty strings for string columns
+                    col_clean = df_client[col].replace("", np.nan)
+                    opts = sorted(col_clean.dropna().unique().tolist(), key=str)
+                    if col_clean.isna().any() or (df_client[col] == "").any():
+                        opts = opts + ["[No Value]"]
+                else:
+                    # For numeric/date columns, just get unique values
+                    opts = sorted(df_client[col].dropna().unique().tolist(), key=str)
+                    if df_client[col].isna().any():
+                        opts = opts + ["[No Value]"]
                 client_sel[col] = st.multiselect(label, opts, default=opts, key=f"cf_{col}")
 
         sa_range = None
@@ -593,12 +599,18 @@ if page == "📊 Sales Dashboard":
         sel = {}
         for col, label in filter_def.items():
             if col in df_raw.columns:
-                # Clean empty strings and detect NULLs
-                col_clean = df_raw[col].astype(str).str.strip().replace("", np.nan)
-                opts = sorted(col_clean.dropna().unique().tolist(), key=str)
-                # Add "[No Value]" if NULL or empty values exist
-                if col_clean.isna().any():
-                    opts = opts + ["[No Value]"]
+                # Check if column is object/string type
+                if df_raw[col].dtype == 'object':
+                    # Clean empty strings for string columns
+                    col_clean = df_raw[col].replace("", np.nan)
+                    opts = sorted(col_clean.dropna().unique().tolist(), key=str)
+                    if col_clean.isna().any() or (df_raw[col] == "").any():
+                        opts = opts + ["[No Value]"]
+                else:
+                    # For numeric/date columns, just get unique values
+                    opts = sorted(df_raw[col].dropna().unique().tolist(), key=str)
+                    if df_raw[col].isna().any():
+                        opts = opts + ["[No Value]"]
                 sel[col] = st.multiselect(label, opts, default=opts)
 
         st.markdown("---")
@@ -968,12 +980,18 @@ elif page == "📞 Calling Dashboard":
             call_sel = {}
             for col, label in call_filters.items():
                 if col in df_call.columns:
-                    # Clean empty strings and detect NULLs
-                    col_clean = df_call[col].astype(str).str.strip().replace("", np.nan)
-                    opts = sorted(col_clean.dropna().unique().tolist(), key=str)
-                    # Add "[No Value]" if NULL or empty values exist
-                    if col_clean.isna().any():
-                        opts = opts + ["[No Value]"]
+                    # Check if column is object/string type
+                    if df_call[col].dtype == 'object':
+                        # Clean empty strings for string columns
+                        col_clean = df_call[col].replace("", np.nan)
+                        opts = sorted(col_clean.dropna().unique().tolist(), key=str)
+                        if col_clean.isna().any() or (df_call[col] == "").any():
+                            opts = opts + ["[No Value]"]
+                    else:
+                        # For numeric/date columns, just get unique values
+                        opts = sorted(df_call[col].dropna().unique().tolist(), key=str)
+                        if df_call[col].isna().any():
+                            opts = opts + ["[No Value]"]
                     call_sel[col] = st.multiselect(label, opts, default=opts, key=f"call_{col}")
 
             if st.button("🔄 Refresh Calling Data", use_container_width=True, key="call_refresh"):
@@ -1311,9 +1329,9 @@ elif page == "🎯 Leads Utilisation":
                 d_range_leads = ()
 
             # Visit Month - Include NULL values as option
-            vm_clean = df_leads["_visit_month"].astype(str).str.strip().replace("", np.nan)
-            vm_opts = sorted(vm_clean.dropna().unique().tolist(), key=str)
-            if vm_clean.isna().any():
+            # Only clean string columns
+            vm_opts = sorted(df_leads["_visit_month"].dropna().unique().tolist(), key=str)
+            if df_leads["_visit_month"].isna().any() or (df_leads["_visit_month"] == "").any():
                 vm_opts = vm_opts + ["[No Visit Month]"]
             sel_vm  = st.multiselect("📅 Visit Month", vm_opts, default=vm_opts, key="leads_vm")
 
@@ -1331,12 +1349,18 @@ elif page == "🎯 Leads Utilisation":
             leads_sel = {}
             for col, label in leads_filters.items():
                 if col in df_leads.columns:
-                    # Clean empty strings and detect NULLs
-                    col_clean = df_leads[col].astype(str).str.strip().replace("", np.nan)
-                    opts = sorted(col_clean.dropna().unique().tolist(), key=str)
-                    # Add "[No Value]" if NULL or empty values exist
-                    if col_clean.isna().any():
-                        opts = opts + ["[No Value]"]
+                    # Check if column is object/string type
+                    if df_leads[col].dtype == 'object':
+                        # Clean empty strings for string columns
+                        col_clean = df_leads[col].replace("", np.nan)
+                        opts = sorted(col_clean.dropna().unique().tolist(), key=str)
+                        if col_clean.isna().any() or (df_leads[col] == "").any():
+                            opts = opts + ["[No Value]"]
+                    else:
+                        # For numeric/date columns, just get unique values
+                        opts = sorted(df_leads[col].dropna().unique().tolist(), key=str)
+                        if df_leads[col].isna().any():
+                            opts = opts + ["[No Value]"]
                     leads_sel[col] = st.multiselect(label, opts, default=opts, key=f"ld_{col}")
 
             if st.button("🔄 Refresh Leads Data", use_container_width=True, key="leads_refresh"):
