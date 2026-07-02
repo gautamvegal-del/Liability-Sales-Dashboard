@@ -1276,10 +1276,6 @@ elif page == "🎯 Leads Utilisation":
     if err or df_leads is None or df_leads.empty:
         st.warning(f"⚠️ Leads data load nahi hua: {err}")
     else:
-        # ── INITIAL COUNT ──
-        initial_count = len(df_leads)
-        initial_converted = int((df_leads["LEAD STATUS"].apply(lambda x: str(x).strip() == "Converted").sum()) if "LEAD STATUS" in df_leads.columns else 0)
-        
         # ── Data Prep ──
         use_cols = ["Product", "Data Source", "Allocated To Name", "Association",
                     "Visit Date", "Main Disposition", "Sub-Disposition Label",
@@ -1289,7 +1285,6 @@ elif page == "🎯 Leads Utilisation":
 
         # Remove completely empty rows
         df_leads = df_leads.dropna(how='all')
-        after_empty_drop = len(df_leads)
 
         # Date & Numeric conversions
         if "Visit Date" in df_leads.columns:
@@ -1300,7 +1295,6 @@ elif page == "🎯 Leads Utilisation":
         # Remove rows where Visit Date is null (invalid dates)
         if "Visit Date" in df_leads.columns:
             df_leads = df_leads[df_leads["Visit Date"].notna()].copy()
-        after_date_filter = len(df_leads)
 
         # Visit Month from Visit Date
         df_leads["_visit_month"] = df_leads["Visit Date"].dt.strftime("%b-%y")
@@ -1416,28 +1410,6 @@ elif page == "🎯 Leads Utilisation":
             st.markdown(f"<div class='live-badge'><span class='dot'></span> LIVE &nbsp;·&nbsp; {now}</div>",
                         unsafe_allow_html=True)
         st.markdown("---")
-
-        # ── DEBUG PANEL ──
-        with st.expander("🔍 Data Load Summary (Debug)"):
-            dc1, dc2, dc3, dc4 = st.columns(4)
-            with dc1:
-                st.metric("📊 Raw Data", f"{initial_count:,}", delta=None, delta_color="off")
-            with dc2:
-                st.metric("✅ Raw Converted", f"{initial_converted:,}", delta=None, delta_color="off")
-            with dc3:
-                st.metric("📅 After Date Filter", f"{after_date_filter:,}", 
-                         delta=f"{after_date_filter - initial_count:+,}")
-            with dc4:
-                st.metric("🎯 Final (Filtered)", f"{len(dfl):,}", 
-                         delta=f"{len(dfl) - after_date_filter:+,}")
-            
-            st.markdown("**Data Loss Breakdown:**")
-            st.write(f"• Raw Leads: **{initial_count:,}**")
-            st.write(f"  ↳ Empty rows removed: {initial_count - after_empty_drop:,}")
-            st.write(f"  ↳ Invalid Visit Date: {after_empty_drop - after_date_filter:,}")
-            st.write(f"• Processing leaves: **{after_date_filter:,}**")
-            st.write(f"• Sidebar filters applied: {after_date_filter - len(dfl):,}")
-            st.write(f"• Final display: **{len(dfl):,}**")
 
         # ── KPI CARDS ──
         st.markdown("<div class='sec-head'>📊 Key Performance Indicators</div>", unsafe_allow_html=True)
