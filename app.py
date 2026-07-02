@@ -519,8 +519,8 @@ def show_client_page():
         max_sa = dfc["Total Sum Assured"].max()
         
         # Define bins for Sum Assured ranges
-        bins = [0, 25_00_000, 50_00_000, 100_00_000, 200_00_000, float('inf')]
-        labels = ["< 25L", "25L - 50L", "50L - 100L", "100L - 200L", "> 200L"]
+        bins = [0, 25_00_000, 50_00_000, 100_00_000, 200_00_000, 500_00_000, 1000_00_000, float('inf')]
+        labels = ["< 25L", "25L - 50L", "50L - 100L", "100L - 200L", "200L - 500L", "500L - 1000L", "> 1000L"]
         
         dfc_sa = dfc.copy()
         dfc_sa["SA_Range"] = pd.cut(dfc_sa["Total Sum Assured"], bins=bins, labels=labels, right=False)
