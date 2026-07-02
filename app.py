@@ -300,7 +300,8 @@ def show_client_page():
         dfc = dfc[dfc["Month"].isin(sel_months)]
     for col, sel in client_sel.items():
         if sel:
-            dfc = dfc[dfc[col].isin(sel)]
+            # Include rows where col matches selected values OR col is null/empty
+            dfc = dfc[(dfc[col].isin(sel)) | (dfc[col].isna())]
     if sa_range and "Total Sum Assured" in dfc.columns:
         dfc = dfc[(dfc["Total Sum Assured"] >= sa_range[0]) &
                   (dfc["Total Sum Assured"] <= sa_range[1])]
@@ -597,7 +598,8 @@ if page == "📊 Sales Dashboard":
         df = df[(df["Date"].dt.date >= d_range[0]) & (df["Date"].dt.date <= d_range[1])]
     for col, chosen in sel.items():
         if chosen:
-            df = df[df[col].isin(chosen)]
+            # Include rows where col matches selected values OR col is null/empty
+            df = df[(df[col].isin(chosen)) | (df[col].isna())]
 
     # ── HEADER ──
     h1, h2 = st.columns([5, 1])
@@ -956,7 +958,8 @@ elif page == "📞 Calling Dashboard":
                       (dfc["Call Date"].dt.date <= d_range_call[1])]
         for col, sel in call_sel.items():
             if sel:
-                dfc = dfc[dfc[col].isin(sel)]
+                # Include rows where col matches selected values OR col is null/empty
+                dfc = dfc[(dfc[col].isin(sel)) | (dfc[col].isna())]
 
         # ── HEADER ──
         h1, h2 = st.columns([5, 1])
@@ -1307,10 +1310,11 @@ elif page == "🎯 Leads Utilisation":
         if sel_vm:
             dfl = dfl[dfl["_visit_month"].isin(sel_vm)]
 
-        # Categorical filters
+        # Categorical filters - Include NULL values
         for col, sel in leads_sel.items():
             if sel:
-                dfl = dfl[dfl[col].isin(sel)]
+                # Include rows where col matches selected values OR col is null/empty
+                dfl = dfl[(dfl[col].isin(sel)) | (dfl[col].isna())]
 
         # ── HEADER ──
         h1, h2 = st.columns([5, 1])
