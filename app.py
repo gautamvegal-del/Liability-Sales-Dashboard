@@ -278,6 +278,9 @@ def show_client_page():
         for col, label in client_filters.items():
             if col in df_client.columns:
                 opts = sorted(df_client[col].dropna().unique().tolist(), key=str)
+                # Add "[No Value]" if NULL values exist
+                if df_client[col].isna().any():
+                    opts = opts + ["[No Value]"]
                 client_sel[col] = st.multiselect(label, opts, default=opts, key=f"cf_{col}")
 
         sa_range = None
@@ -300,8 +303,16 @@ def show_client_page():
         dfc = dfc[dfc["Month"].isin(sel_months)]
     for col, sel in client_sel.items():
         if sel:
-            # Include rows where col matches selected values OR col is null/empty
-            dfc = dfc[(dfc[col].isin(sel)) | (dfc[col].isna())]
+            # Handle "[No Value]" placeholder for NULL values
+            has_no_value = "[No Value]" in sel
+            sel_clean = [s for s in sel if s != "[No Value]"]
+            
+            if has_no_value and sel_clean:
+                dfc = dfc[(dfc[col].isin(sel_clean)) | (dfc[col].isna())]
+            elif has_no_value:
+                dfc = dfc[dfc[col].isna()]
+            else:
+                dfc = dfc[dfc[col].isin(sel_clean)]
     if sa_range and "Total Sum Assured" in dfc.columns:
         dfc = dfc[(dfc["Total Sum Assured"] >= sa_range[0]) &
                   (dfc["Total Sum Assured"] <= sa_range[1])]
@@ -581,6 +592,9 @@ if page == "📊 Sales Dashboard":
         for col, label in filter_def.items():
             if col in df_raw.columns:
                 opts     = sorted(df_raw[col].dropna().unique().tolist(), key=str)
+                # Add "[No Value]" if NULL values exist
+                if df_raw[col].isna().any():
+                    opts = opts + ["[No Value]"]
                 sel[col] = st.multiselect(label, opts, default=opts)
 
         st.markdown("---")
@@ -598,8 +612,16 @@ if page == "📊 Sales Dashboard":
         df = df[(df["Date"].dt.date >= d_range[0]) & (df["Date"].dt.date <= d_range[1])]
     for col, chosen in sel.items():
         if chosen:
-            # Include rows where col matches selected values OR col is null/empty
-            df = df[(df[col].isin(chosen)) | (df[col].isna())]
+            # Handle "[No Value]" placeholder for NULL values
+            has_no_value = "[No Value]" in chosen
+            chosen_clean = [s for s in chosen if s != "[No Value]"]
+            
+            if has_no_value and chosen_clean:
+                df = df[(df[col].isin(chosen_clean)) | (df[col].isna())]
+            elif has_no_value:
+                df = df[df[col].isna()]
+            else:
+                df = df[df[col].isin(chosen_clean)]
 
     # ── HEADER ──
     h1, h2 = st.columns([5, 1])
@@ -943,6 +965,9 @@ elif page == "📞 Calling Dashboard":
             for col, label in call_filters.items():
                 if col in df_call.columns:
                     opts = sorted(df_call[col].dropna().unique().tolist(), key=str)
+                    # Add "[No Value]" if NULL values exist
+                    if df_call[col].isna().any():
+                        opts = opts + ["[No Value]"]
                     call_sel[col] = st.multiselect(label, opts, default=opts, key=f"call_{col}")
 
             if st.button("🔄 Refresh Calling Data", use_container_width=True, key="call_refresh"):
@@ -958,8 +983,16 @@ elif page == "📞 Calling Dashboard":
                       (dfc["Call Date"].dt.date <= d_range_call[1])]
         for col, sel in call_sel.items():
             if sel:
-                # Include rows where col matches selected values OR col is null/empty
-                dfc = dfc[(dfc[col].isin(sel)) | (dfc[col].isna())]
+                # Handle "[No Value]" placeholder for NULL values
+                has_no_value = "[No Value]" in sel
+                sel_clean = [s for s in sel if s != "[No Value]"]
+                
+                if has_no_value and sel_clean:
+                    dfc = dfc[(dfc[col].isin(sel_clean)) | (dfc[col].isna())]
+                elif has_no_value:
+                    dfc = dfc[dfc[col].isna()]
+                else:
+                    dfc = dfc[dfc[col].isin(sel_clean)]
 
         # ── HEADER ──
         h1, h2 = st.columns([5, 1])
@@ -1271,11 +1304,13 @@ elif page == "🎯 Leads Utilisation":
             else:
                 d_range_leads = ()
 
-            # Visit Month
+            # Visit Month - Include NULL values as option
             vm_opts = sorted(df_leads["_visit_month"].dropna().replace("", np.nan).dropna().unique().tolist(), key=str)
+            if df_leads["_visit_month"].isna().any():
+                vm_opts = vm_opts + ["[No Visit Month]"]
             sel_vm  = st.multiselect("📅 Visit Month", vm_opts, default=vm_opts, key="leads_vm")
 
-            # Categorical Filters
+            # Categorical Filters - Include NULL values as "[No Value]" option
             leads_filters = {
                 "Allocated To Name":     "👤 RM Name",
                 "Team Leader":           "🏅 Team Leader",
@@ -1292,6 +1327,9 @@ elif page == "🎯 Leads Utilisation":
                     opts = sorted(
                         df_leads[col].dropna().replace("", np.nan).dropna().unique().tolist(), key=str
                     )
+                    # Add "[No Value]" if NULL values exist
+                    if df_leads[col].isna().any():
+                        opts = opts + ["[No Value]"]
                     leads_sel[col] = st.multiselect(label, opts, default=opts, key=f"ld_{col}")
 
             if st.button("🔄 Refresh Leads Data", use_container_width=True, key="leads_refresh"):
@@ -1306,15 +1344,34 @@ elif page == "🎯 Leads Utilisation":
             dfl = dfl[(dfl["Visit Date"].dt.date >= d_range_leads[0]) &
                       (dfl["Visit Date"].dt.date <= d_range_leads[1])]
 
-        # Visit Month filter
+        # Visit Month filter - Handle "[No Visit Month]" placeholder
         if sel_vm:
-            dfl = dfl[dfl["_visit_month"].isin(sel_vm)]
+            has_no_month = "[No Visit Month]" in sel_vm
+            sel_vm_clean = [s for s in sel_vm if s != "[No Visit Month]"]
+            
+            if has_no_month and sel_vm_clean:
+                dfl = dfl[(dfl["_visit_month"].isin(sel_vm_clean)) | (dfl["_visit_month"].isna())]
+            elif has_no_month:
+                dfl = dfl[dfl["_visit_month"].isna()]
+            else:
+                dfl = dfl[dfl["_visit_month"].isin(sel_vm_clean)]
 
-        # Categorical filters - Include NULL values
+        # Categorical filters - Handle "[No Value]" placeholder for NULL values
         for col, sel in leads_sel.items():
             if sel:
-                # Include rows where col matches selected values OR col is null/empty
-                dfl = dfl[(dfl[col].isin(sel)) | (dfl[col].isna())]
+                # Separate "[No Value]" placeholder from actual values
+                has_no_value = "[No Value]" in sel
+                sel_clean = [s for s in sel if s != "[No Value]"]
+                
+                if has_no_value and sel_clean:
+                    # Include both selected values and NULL values
+                    dfl = dfl[(dfl[col].isin(sel_clean)) | (dfl[col].isna())]
+                elif has_no_value:
+                    # Only NULL values
+                    dfl = dfl[dfl[col].isna()]
+                else:
+                    # Only selected values
+                    dfl = dfl[dfl[col].isin(sel_clean)]
 
         # ── HEADER ──
         h1, h2 = st.columns([5, 1])
